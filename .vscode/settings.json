@@ -1,0 +1,16 @@
+{
+    "clangd.arguments": [
+        "--background-index",
+        "--compile-commands-dir=${workspaceFolder}/build",
+        "--query-driver=/usr/bin/*"
+    ],
+    "cSpell.words": [
+        "bboxes",
+        "Bcoords",
+        "Ccoords",
+        "Moller",
+        "Hodgman",
+        "noncoplanar",
+        "nonconformal"
+    ]
+}
