@@ -1,23 +1,24 @@
 #include "mesh_clean.hpp"
 #include <numeric>
 
-MeshData filterMesh(const MeshData& mesh, const std::vector<bool>& remove) {
-    const size_t len = remove.size();
-    MeshData out;
-    out.nodes = mesh.nodes;
-    out.triangles.reserve(len);
-    out.tags.reserve(len);
-    out.centres.reserve(len);
-    out.normals.reserve(len);
-    for (size_t i = 0; i < len; ++i) {
-        if (!remove[i]) {
-            out.triangles.push_back(mesh.triangles[i]);
-            if (!mesh.tags.empty()) out.tags.push_back(mesh.tags[i]);
-            if (i < mesh.centres.size()) out.centres.push_back(mesh.centres[i]);
-            if (i < mesh.normals.size()) out.normals.push_back(mesh.normals[i]);
+void filterMesh(MeshData& mesh, const std::vector<bool>& remove) {
+    const size_t total = mesh.triangles.size();
+    size_t writeIdx = 0;
+    for (size_t readIdx = 0; readIdx < total; ++readIdx) {
+        if (!remove[readIdx]) {
+            if (readIdx != writeIdx) {
+                mesh.triangles[writeIdx] = std::move(mesh.triangles[readIdx]);
+                mesh.tags[writeIdx]    = std::move(mesh.tags[readIdx]);
+                mesh.centres[writeIdx] = std::move(mesh.centres[readIdx]);
+                mesh.normals[writeIdx] = std::move(mesh.normals[readIdx]);
+            }
+            ++writeIdx;
         }
     }
-    return out;
+    mesh.triangles.resize(writeIdx);
+    mesh.tags.resize(writeIdx);
+    mesh.centres.resize(writeIdx);
+    mesh.normals.resize(writeIdx);
 }
 
 void clearUnusedNodes(MeshData& mesh) {
@@ -112,6 +113,14 @@ void removeDegenerateTriangles(MeshData& mesh) {
 void cleanMesh(MeshData& mesh, double eps) {
     collapseSlivers(mesh, eps);
     removeDegenerateTriangles(mesh);
+    clearUnusedNodes(mesh);
+    const size_t numTris = mesh.triangles.size();
+    mesh.centres.resize(numTris);
+    mesh.normals.resize(numTris);
+    for (size_t i = 0; i < numTris; ++i) {
+        mesh.centres[i] = mesh.triangles[i].centre(mesh.nodes);
+        mesh.normals[i] = mesh.triangles[i].normal(mesh.nodes);
+    }
 }
 
 void invertWinding(MeshData& mesh) {
@@ -151,5 +160,6 @@ MeshData combineMeshes(const std::vector<MeshData>& meshes, double eps) {
         }
     }
     combined.nodes = grid.getUniquePoints();
+    clearUnusedNodes(combined);
     return combined;
 }

@@ -1,4 +1,5 @@
 #include "bem_interop.hpp"
+
 MeshData extractMeshData(const bem::TriangleMesh<3>& mesh) {
     MeshData data;
     const auto& verts = mesh.verts();
@@ -15,11 +16,10 @@ MeshData extractMeshData(const bem::TriangleMesh<3>& mesh) {
     data.normals.reserve(count);
     data.tags.reserve(count);
     for (size_t i = 0; i < count; ++i) {
-        Triangle tri;
-        tri.v = {
-            static_cast<uint32_t>(elems(0, i)),
-            static_cast<uint32_t>(elems(1, i)),
-            static_cast<uint32_t>(elems(2, i))
+        Triangle tri = {
+            (elems(0, i)),
+            (elems(1, i)),
+            (elems(2, i))
         };
         data.triangles.push_back(tri);
         data.centres.push_back(tri.centre(data.nodes));
@@ -28,6 +28,7 @@ MeshData extractMeshData(const bem::TriangleMesh<3>& mesh) {
     }
     return data;
 }
+
 void rebuildMesh(bem::TriangleMesh<3>& mesh, const MeshData& newMesh, double eps) {
     SpatialGrid3D grid(eps);
     std::vector<std::array<size_t, 3>> flat_elements;

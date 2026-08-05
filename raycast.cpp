@@ -33,7 +33,7 @@ static bool rayBoxIntersect(const Vec3& orig, const Vec3& invDir, const BBox& bo
 }
 int countRayIntersections(
     const Bvh& bvh, const MeshData& mesh, 
-    const Vec3& startPoint, const Vec3& direction, 
+    const Vec3& orig, const Vec3& direction, 
     double eps) 
 {
     if (bvh.nodes.empty()) return 0;
@@ -47,13 +47,13 @@ int countRayIntersections(
         size_t nodeIdx = stack.back();
         stack.pop_back();
         const auto& node = bvh.nodes[nodeIdx];
-        if (!rayBoxIntersect(startPoint, invDir, node.get_bbox())) {
+        if (!rayBoxIntersect(orig, invDir, node.get_bbox())) {
             continue;
         }
         if (node.is_leaf()) {
             size_t prim_id = bvh.prim_ids[node.index.first_id()]; 
             const Triangle& tri = mesh.triangles[prim_id];
-            if (intersectRayTri(startPoint, dir, tri, mesh.nodes, eps)) {
+            if (intersectRayTri(orig, dir, tri, mesh.nodes, eps)) {
                 hitCount++;
             }
         } else {

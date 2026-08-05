@@ -6,7 +6,7 @@
 #include "triangulation.hpp"
 #include "mesh_clean.hpp"
 #include <cstddef>
-MeshData classifyAndFilterAB(const MeshData& meshA, const MeshData& meshB, double eps, BoolOp op, bool isMeshA){
+std::vector<bool> getRemovalMask(const MeshData& meshA, const MeshData& meshB, double eps, BoolOp op, bool isMeshA){
     Bvh bvhB = buildMeshBVH(meshB);
     const size_t aN = meshA.triangles.size();
     std::vector<bool> removeA(aN, false);
@@ -44,9 +44,7 @@ MeshData classifyAndFilterAB(const MeshData& meshA, const MeshData& meshB, doubl
         }
         removeA[i] = !keep;
     }
-    MeshData out = filterMesh(meshA, removeA);
-    clearUnusedNodes(out);
-    return out;
+    return removeA;
 }
 Connection nonConformal(const bem::TriangleMesh<3>& A, const bem::TriangleMesh<3>& B)
 {
@@ -122,53 +120,58 @@ void meshCombine(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B, bool removeTo
         cleanMesh(ctx.meshDataA, ctx.eps);
         cleanMesh(ctx.meshDataB, ctx.eps);
     }
-    clearUnusedNodes(ctx.meshDataA);
-    clearUnusedNodes(ctx.meshDataB);
     rebuildMesh(A, ctx.meshDataA, ctx.eps);
     rebuildMesh(B, ctx.meshDataB, ctx.eps);
 }
 bem::TriangleMesh<3> meshUnion(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B, bool cleanDegenerate){
     CollisionContext ctx = collideAndCut(A, B, false);
-    MeshData newMeshA = classifyAndFilterAB(ctx.meshDataA, ctx.meshDataB, ctx.eps, BoolOp::Union, true);
-    MeshData newMeshB = classifyAndFilterAB(ctx.meshDataB, ctx.meshDataA, ctx.eps, BoolOp::Union, false);
-    MeshData combined = combineMeshes({newMeshA, newMeshB}, ctx.eps);
+    std::vector<bool> removeAInB = getRemovalMask(ctx.meshDataA, ctx.meshDataB, ctx.eps, BoolOp::Union, true);
+    std::vector<bool> removeBInA = getRemovalMask(ctx.meshDataB, ctx.meshDataA, ctx.eps, BoolOp::Union, false);
+    filterMesh(ctx.meshDataA, removeAInB);
+    filterMesh(ctx.meshDataB, removeBInA);
+    MeshData combined = combineMeshes({ctx.meshDataA, ctx.meshDataB}, ctx.eps);
     if (cleanDegenerate){
         cleanMesh(combined, ctx.eps);
     }
-    clearUnusedNodes(combined);
     bem::TriangleMesh<3> out;
     rebuildMesh(out, combined, ctx.eps);
     return out;
 }
 bem::TriangleMesh<3> meshIntersect(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B, bool cleanDegenerate){
     CollisionContext ctx = collideAndCut(A, B, false);
-    MeshData newMeshA = classifyAndFilterAB(ctx.meshDataA, ctx.meshDataB, ctx.eps, BoolOp::Intersect, true);
-    MeshData newMeshB = classifyAndFilterAB(ctx.meshDataB, ctx.meshDataA, ctx.eps, BoolOp::Intersect, false);
-    MeshData combined = combineMeshes({newMeshA, newMeshB}, ctx.eps);
+    std::vector<bool> removeANotInB = getRemovalMask(ctx.meshDataA, ctx.meshDataB, ctx.eps, BoolOp::Intersect, true);
+    std::vector<bool> removeBNotInA = getRemovalMask(ctx.meshDataB, ctx.meshDataA, ctx.eps, BoolOp::Intersect, false);
+    filterMesh(ctx.meshDataA, removeANotInB);
+    filterMesh(ctx.meshDataB, removeBNotInA);
+    MeshData combined = combineMeshes({ctx.meshDataA, ctx.meshDataB}, ctx.eps);
     if (cleanDegenerate){
         cleanMesh(combined, ctx.eps);
     }
-    clearUnusedNodes(combined);
     bem::TriangleMesh<3> out;
     rebuildMesh(out, combined, ctx.eps);
     return out;
 }
 void meshDifference(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B, bool cleanDegenerate){
     CollisionContext ctx = collideAndCut(A, B, false);
-    MeshData newMeshA = classifyAndFilterAB(ctx.meshDataA, ctx.meshDataB, ctx.eps, BoolOp::Difference, true);
-    MeshData bInA = classifyAndFilterAB(ctx.meshDataB, ctx.meshDataA, ctx.eps, BoolOp::Difference, false);
+    std::vector<bool> removeAInB = getRemovalMask(ctx.meshDataA, ctx.meshDataB, ctx.eps, BoolOp::Difference, true);
+    std::vector<bool> removeBNotInA = getRemovalMask(ctx.meshDataB, ctx.meshDataA, ctx.eps, BoolOp::Difference, false);
+    std::vector<bool> removeBInA = getRemovalMask(ctx.meshDataB, ctx.meshDataA, ctx.eps, BoolOp::Difference, true);
+    std::vector<bool> removeANotInB = getRemovalMask(ctx.meshDataA, ctx.meshDataB, ctx.eps, BoolOp::Difference, false);
+    MeshData bInA = ctx.meshDataB;
+    MeshData aInB = ctx.meshDataA;
+    filterMesh(ctx.meshDataA, removeAInB);
+    filterMesh(ctx.meshDataB, removeBInA);
+    // Filter interior cut boundaries
+    filterMesh(bInA, removeBNotInA);
+    filterMesh(aInB, removeANotInB);
     invertWinding(bInA);
-    MeshData combinedA = combineMeshes({newMeshA, bInA}, ctx.eps);
-    MeshData newMeshB = classifyAndFilterAB(ctx.meshDataB, ctx.meshDataA, ctx.eps, BoolOp::Difference, true);
-    MeshData aInB = classifyAndFilterAB(ctx.meshDataA, ctx.meshDataB, ctx.eps, BoolOp::Difference, false);
     invertWinding(aInB);
-    MeshData combinedB = combineMeshes({newMeshB, aInB}, ctx.eps);
+    MeshData combinedA = combineMeshes({ctx.meshDataA, bInA}, ctx.eps);
+    MeshData combinedB = combineMeshes({ctx.meshDataB, aInB}, ctx.eps);
     if (cleanDegenerate){
         cleanMesh(combinedA, ctx.eps);
         cleanMesh(combinedB, ctx.eps);
     }
-    clearUnusedNodes(combinedA);
-    clearUnusedNodes(combinedB);
     rebuildMesh(A, combinedA, ctx.eps);
     rebuildMesh(B, combinedB, ctx.eps);
 }

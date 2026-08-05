@@ -8,13 +8,42 @@
 #include <bvh/v2/vec.h>
 #include <bvh/v2/bbox.h>
 #include <CDT.h>
+
 namespace BVH = bvh::v2;
 using Scalar = double;
 using Vec3 = BVH::Vec<Scalar, 3>;
 using BBox = BVH::BBox<Scalar, 3>;
+
+/**
+* @brief Formatted stream output operator for a 3D vector.
+* @param[in,out] os - Output stream.
+* @param[in] v - Vector to print.
+* @return Reference to the output stream.
+*/
 std::ostream& operator<<(std::ostream& os, const Vec3& v);
+
+/**
+* @brief Combines a hash seed with a 64-bit integer value.
+* @param[in] seed - Existing hash value.
+* @param[in] v - Value to combine into hash.
+* @return Combined hash value.
+*/
 size_t hashCombine(size_t seed, int64_t v);
+
+/**
+* @brief Computes adaptive dynamic geometric tolerance (epsilon) based on mesh bounding boxes.
+* @param[in] boxA - Bounding box of mesh A.
+* @param[in] boxB - Bounding box of mesh B.
+* @return Computed absolute numerical tolerance.
+*/
 double computeMeshEpsilon(const BBox& boxA, const BBox& boxB);
+
+/**
+* @brief Flattens a 2D nested vector into a 1D vector.
+* @tparam T Type of elements contained in the vector.
+* @param[in] v - Nested 2D vector.
+* @return Flattened 1D vector containing all elements sequentially.
+*/
 template <class T>
 std::vector<T> flattenVector(const std::vector<std::vector<T>>& v) {
     std::vector<T> out;
@@ -26,12 +55,28 @@ std::vector<T> flattenVector(const std::vector<std::vector<T>>& v) {
             out.push_back(x);
     return out;
 }
+
+/**
+* @brief Evaluates the sign of a numerical value with geometric tolerance.
+* @tparam T Numeric scalar type.
+* @param[in] num - Value to check.
+* @param[in] eps - Absolute tolerance threshold.
+* @return -1 if negative beyond tolerance, +1 if positive beyond tolerance, 0 if within tolerance.
+*/
 template <class T>
 int sign(const T& num, double eps) {
     if (num < -eps) return -1;
     if (num >  eps) return  1;
     return 0;
 }
+
+/**
+* @brief Identifies the unique vertex index that lies on one side of a plane compared to the other two.
+* @tparam T Signed distance scalar type.
+* @param[in] dist - Array of signed distances for 3 triangle vertices.
+* @param[in] eps - Geometric tolerance threshold.
+* @return Index (0, 1, or 2) of isolated vertex, or -1 if no unique split exists.
+*/
 template <class T>
 int uniqueSignIndex(const std::array<T,3>& dist, double eps) {
     int s0 = sign(dist[0], eps);
@@ -42,6 +87,12 @@ int uniqueSignIndex(const std::array<T,3>& dist, double eps) {
     if (s2 != s0 && s2 == s1) return 2;
     return -1;
 }
+
+/**
+* @class SpatialGrid3D
+* @brief Spatial hashing grid for 3D point deduplication and fast proximity lookup.
+* @details Divides 3D space into uniform cubic cells of size `eps` to query and merge near-duplicate coordinates.
+*/
 class SpatialGrid3D {
 private:
     struct Key {
@@ -62,8 +113,20 @@ private:
     double sqrEps;
     std::unordered_map<Key, std::vector<size_t>, KeyHash> grid;
     std::vector<Vec3> points;
+
 public:
+    /**
+    * @brief Constructs a 3D spatial grid given a tolerance distance.
+    * @param[in] eps - Cell size and maximum distance for duplicate point matching.
+    */
     explicit SpatialGrid3D(double eps) : cellSize(eps), sqrEps(eps * eps) {}
+
+    /**
+    * @brief Queries an existing point within distance tolerance or adds a new point to the grid.
+    * @param[in] p - 3D Point coordinate.
+    * @return Index of existing or newly inserted point in the internal point list.
+    * @details To avoid missing grid-misaligned degeneracy, this checks the current grid cube and its 26 neighbours
+    */
     size_t getOrAdd(const Vec3& p) {
         int64_t cx = static_cast<int64_t>(std::floor(p[0] / cellSize));
         int64_t cy = static_cast<int64_t>(std::floor(p[1] / cellSize));
@@ -90,9 +153,23 @@ public:
         grid[{cx, cy, cz}].push_back(newIdx);
         return newIdx;
     }
+
+    /**
+    * @brief Gets the list of unique points stored in the grid.
+    * @return Reference to vector of unique 3D point positions.
+    */
     const std::vector<Vec3>& getUniquePoints() const { return points; }
+
+    /**
+    * @brief Clears all grid cells and stored points.
+    */
     void clear() { grid.clear(); points.clear(); }
 };
+
+/**
+* @class SpatialGrid2D
+* @brief Spatial hashing grid for 2D point deduplication on local coordinate projection planes.
+*/
 class SpatialGrid2D {
 private:
     struct Key {
@@ -111,8 +188,20 @@ private:
     double sqrEps;
     std::unordered_map<Key, std::vector<CDT::VertInd>, KeyHash> grid;
     std::vector<CDT::V2d<double>> points;
+
 public:
+    /**
+    * @brief Constructs a 2D spatial grid.
+    * @param[in] eps - Cell size and deduplication threshold.
+    */
     explicit SpatialGrid2D(double eps) : cellSize(eps), sqrEps(eps * eps) {}
+
+    /**
+    * @brief Queries or inserts a 2D point into the grid.
+    * @param[in] p - 2D Point coordinate.
+    * @return Index of the existing or newly registered point.
+    * @details To avoid missing grid-misaligned degeneracy, this checks the current grid square and its 8 neighbours
+    */
     CDT::VertInd getOrAdd(const CDT::V2d<double>& p) {
         int64_t cx = static_cast<int64_t>(std::floor(p.x / cellSize));
         int64_t cy = static_cast<int64_t>(std::floor(p.y / cellSize));
@@ -136,6 +225,15 @@ public:
         grid[{cx, cy}].push_back(newIdx);
         return newIdx;
     }
+
+    /**
+    * @brief Returns unique 2D point positions stored in the spatial grid.
+    * @return Reference to array of 2D points.
+    */
     const std::vector<CDT::V2d<double>>& getUniquePoints() const { return points; }
+
+    /**
+    * @brief Resets and clears the 2D grid structure.
+    */
     void clear() { grid.clear(); points.clear(); }
 };

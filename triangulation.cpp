@@ -191,7 +191,7 @@ MeshData cutMesh(
         if (itNC != NCcoords.end()) {
             NCCuts.insert(NCCuts.end(), itNC->second.begin(), itNC->second.end());
         }
-        subTris = cutTriangles(subTris, nodeGrid.getUniquePoints(), NCCuts, frame, eps, nodeGrid, false);
+        subTris = cutTriangles(subTris, nodeGrid.getUniquePoints(), NCCuts, frame, eps, nodeGrid, removeInternalSurfaces);
         if (!subTris.empty()) {
             outData.triangles.push_back(subTris[0]);
             outData.tags.push_back(tag);
