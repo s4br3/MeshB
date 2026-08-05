@@ -1,6 +1,7 @@
 #pragma once
 #include "mesh_types.hpp"
 
+
 /**
 * @brief Alias for Constrained Delaunay Triangulation structure.
 */

@@ -40,7 +40,7 @@ struct Triangle {
     * @param[in] nodes - Global node list containing vertex positions.
     * @return Normalized surface normal vector (counter-clockwise orientation).
     */
-    const Vec3 normal(const std::vector<Vec3>& nodes) const { 
+    Vec3 normal(const std::vector<Vec3>& nodes) const { 
         return BVH::normalize(BVH::cross(nodes[v[1]] - nodes[v[0]], nodes[v[2]] - nodes[v[0]])); 
     }
 
@@ -49,7 +49,7 @@ struct Triangle {
     * @param[in] nodes - Global node list containing vertex positions.
     * @return Centroid coordinate in 3D space.
     */
-    const Vec3 centre(const std::vector<Vec3>& nodes) const { 
+    Vec3 centre(const std::vector<Vec3>& nodes) const { 
         return (nodes[v[0]] + nodes[v[1]] + nodes[v[2]]) * (1.0 / 3.0); 
     }
 
@@ -65,12 +65,23 @@ struct Triangle {
         box.extend(nodes[v[2]]);
         return box;
     }
-
     /**
-    * @brief Formatted stream output operator for a triangle given
+    @brief Get the coordinates of vertices defining this triangle
     * @param[in] nodes - Global node list containing vertex positions
+    * @return Vertex array containing the Vec3s defining this triangle
     */
+    std::array<Vec3, 3> getVertices(const std::vector<Vec3>& nodes) const{
+        return {nodes[v[0]], nodes[v[1]], nodes[v[2]]};
+    }
+
 };
+/**
+* @brief Formatted stream output operator for a triangle given
+* @param[in] os - Output stream
+* @param[in] vertices - Vertex array containing the Vec3s defining this triangle
+* @return Reference to the output stream
+*/
+std::ostream& operator<<(std::ostream& os, const std::array<Vec3, 3>& vertices);
 
 /**
 * @struct MeshData
@@ -89,7 +100,8 @@ struct MeshData {
     MeshData(MeshData&&) noexcept = default;
     MeshData& operator=(MeshData&&) noexcept = default;
 };
-
+std::ostream& operator<<(std::ostream& os, const MeshData& mesh);
+void recomputeMeshData(MeshData& mesh);
 /**
 * @struct CollisionContext
 * @brief Stores surface intersection polyline results and element maps between colliding meshes.
@@ -144,4 +156,19 @@ struct ProjectionFrame {
     Vec3 to3D(const CDT::V2d<double>& p) const {
         return origin + u * p.x + v * p.y;
     }
-};
+};namespace std {
+
+    /**
+    * @brief Hashing for pairs of values (to be used for unordered_map)
+    * @param[in] p - Pair of values (of any hashable types)
+    * @return The pair's hash
+    */
+    template <typename T1, typename T2>
+    struct hash<pair<T1, T2>> {
+        size_t operator()(const pair<T1, T2>& p) const {
+            size_t h1 = hash<T1>{}(p.first);
+            size_t h2 = hash<T2>{}(p.second);
+            return h1 ^ (h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2));
+        }
+    };
+}

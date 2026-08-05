@@ -91,23 +91,17 @@ void collapseSlivers(MeshData& mesh, double eps) {
 void removeDegenerateTriangles(MeshData& mesh) {
     std::vector<Triangle> goodTriangles;
     std::vector<size_t> goodTags;
-    std::vector<Vec3> goodCentres;
-    std::vector<Vec3> goodNormals;
 
     for (size_t i = 0; i < mesh.triangles.size(); ++i) {
         const Triangle& t = mesh.triangles[i];
         if (t.v[0] != t.v[1] && t.v[1] != t.v[2] && t.v[2] != t.v[0]) {
             goodTriangles.push_back(t);
             goodTags.push_back(mesh.tags[i]);
-            goodCentres.push_back(mesh.centres[i]);
-            goodNormals.push_back(mesh.normals[i]);
         }
     }
 
     mesh.triangles = std::move(goodTriangles);
     mesh.tags = std::move(goodTags);
-    mesh.centres = std::move(goodCentres);
-    mesh.normals = std::move(goodNormals);
 }
 
 void cleanMesh(MeshData& mesh, double eps) {
@@ -136,7 +130,7 @@ MeshData combineMeshes(const std::vector<MeshData>& meshes, double eps) {
     MeshData combined;
     SpatialGrid3D grid(eps);
     size_t tagOffset = 0;
-    for (const auto& mesh : meshes) {
+    for (const MeshData& mesh : meshes) {
         std::vector<size_t> remap(mesh.nodes.size());
         for (size_t i = 0; i < mesh.nodes.size(); ++i) {
             remap[i] = grid.getOrAdd(mesh.nodes[i]);

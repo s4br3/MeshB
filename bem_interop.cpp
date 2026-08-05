@@ -33,15 +33,15 @@ void rebuildMesh(bem::TriangleMesh<3>& mesh, const MeshData& newMesh, double eps
     SpatialGrid3D grid(eps);
     std::vector<std::array<size_t, 3>> flat_elements;
     std::vector<size_t> tags;
-    for (const auto& tri : newMesh.triangles) {
+    for (const Triangle& tri : newMesh.triangles) {
         std::array<size_t, 3> element;
         for (int i = 0; i < 3; ++i) {
             element[i] = grid.getOrAdd(newMesh.nodes[tri.v[i]]);
         }
         flat_elements.push_back(element);
     }
-    const auto& flat_vertices = grid.getUniquePoints();
-    for (const auto& tag : newMesh.tags) {
+    const std::vector<Vec3>& flat_vertices = grid.getUniquePoints();
+    for (const size_t& tag : newMesh.tags) {
         tags.push_back(tag);
     }
     Eigen::Matrix<double, 3, Eigen::Dynamic> verts(3, flat_vertices.size());

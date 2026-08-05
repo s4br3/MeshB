@@ -3,11 +3,10 @@
 
 /**
 * @brief Filters a mesh by removing elements specified by a selection mask.
-* @param[in] mesh - Source mesh data to filter.
-* @param[in] remove - Boolean flag array where true indicates the triangle at that index should be removed.
-* @return Filtered MeshData object containing remaining valid triangles and nodes.
+* @param[in, out] mesh - Source mesh data to filter  and filtered MeshData object containing
+* remaining valid triangles and nodes.
 */
-MeshData filterMesh(const MeshData& mesh, const std::vector<bool>& remove);
+void filterMesh(MeshData& mesh, const std::vector<bool>& remove);
 
 /**
 * @brief Removes vertices from the mesh that are no longer referenced by any triangle elements.

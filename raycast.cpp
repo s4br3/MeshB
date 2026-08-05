@@ -46,7 +46,7 @@ int countRayIntersections(
     while (!stack.empty()) {
         size_t nodeIdx = stack.back();
         stack.pop_back();
-        const auto& node = bvh.nodes[nodeIdx];
+        const Node& node = bvh.nodes[nodeIdx];
         if (!rayBoxIntersect(orig, invDir, node.get_bbox())) {
             continue;
         }
@@ -70,7 +70,7 @@ bool isInsideMesh(const Bvh& bvh, const MeshData& mesh, const Vec3& point, doubl
         {0.005791, 0.006802, 1.0     }
     }};
     int insideVotes = 0;
-    for (const auto& dir : perturbedRayDirs) {
+    for (const Vec3& dir : perturbedRayDirs) {
         int count = countRayIntersections(bvh, mesh, point, dir, eps);
         if ((count % 2) != 0) {
             insideVotes++;
@@ -81,7 +81,7 @@ bool isInsideMesh(const Bvh& bvh, const MeshData& mesh, const Vec3& point, doubl
 FaceClass classifyFace(
     const Bvh& targetBvh,
     const MeshData& targetMesh,
-    const Vec3& triCenter,
+    const Vec3& triCentre,
     const Vec3& triNormal,
     double eps)
 {
@@ -90,21 +90,21 @@ FaceClass classifyFace(
         stack.reserve(64);
         stack.push_back(0);
         BBox ptBox = BBox::make_empty();
-        ptBox.extend(triCenter - Vec3{eps, eps, eps});
-        ptBox.extend(triCenter + Vec3{eps, eps, eps});
+        ptBox.extend(triCentre - Vec3{eps, eps, eps});
+        ptBox.extend(triCentre + Vec3{eps, eps, eps});
         while (!stack.empty()) {
             size_t nodeIdx = stack.back();
             stack.pop_back();
-            const auto& node = targetBvh.nodes[nodeIdx];
+            const Node& node = targetBvh.nodes[nodeIdx];
             if (!boundingBoxOverlap(ptBox, node.get_bbox(), eps)) continue;
             if (node.is_leaf()) {
                 size_t primId = targetBvh.prim_ids[node.index.first_id()];
                 const Triangle& targetTri = targetMesh.triangles[primId];
                 Vec3 targetNorm = targetTri.normal(targetMesh.nodes);
-                double distToPlane = std::abs(BVH::dot(targetNorm, triCenter - targetMesh.nodes[targetTri.v[0]]));
+                double distToPlane = std::abs(BVH::dot(targetNorm, triCentre - targetTri.centre(targetMesh.nodes)));
                 if (distToPlane <= eps * 10.0) {
-                    Vec3 projPt = triCenter - targetNorm * BVH::dot(targetNorm, triCenter - targetMesh.nodes[targetTri.v[0]]);
-                    if (pointInTriangle(projPt, targetTri, targetMesh.nodes, eps * 10.0)) {
+                    Vec3 projPt = triCentre - targetNorm * BVH::dot(targetNorm, triCentre - targetMesh.nodes[targetTri.v[0]]);
+                    if (pointInTriangle(projPt, targetTri.getVertices(targetMesh.nodes), eps * 10.0)) {
                         double dotN = BVH::dot(triNormal, targetNorm);
                         return (dotN > 0.0) ? FaceClass::CoplanarSame : FaceClass::CoplanarOpp;
                     }
@@ -115,6 +115,6 @@ FaceClass classifyFace(
             }
         }
     }
-    bool inside = isInsideMesh(targetBvh, targetMesh, triCenter, eps);
+    bool inside = isInsideMesh(targetBvh, targetMesh, triCentre, eps);
     return inside ? FaceClass::Inside : FaceClass::Outside;
 }

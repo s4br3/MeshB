@@ -82,9 +82,9 @@ int uniqueSignIndex(const std::array<T,3>& dist, double eps) {
     int s0 = sign(dist[0], eps);
     int s1 = sign(dist[1], eps);
     int s2 = sign(dist[2], eps);
-    if (s0 != s1 && s0 == s2) return 0;
-    if (s1 != s0 && s1 == s2) return 1;
-    if (s2 != s0 && s2 == s1) return 2;
+    if (s0 != s1 && s1 == s2) return 0;
+    if (s1 != s0 && s0 == s2) return 1;
+    if (s2 != s0 && s0 == s1) return 2;
     return -1;
 }
 

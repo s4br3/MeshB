@@ -51,57 +51,49 @@ Connection nonConformal(const bem::TriangleMesh<3>& A, const bem::TriangleMesh<3
     MeshData meshA = extractMeshData(A);
     MeshData meshB = extractMeshData(B);
     CollisionContext ctx = detectCollisions(meshA, meshB);
-    std::unordered_map<size_t, SpatialGrid3D> gridA;
-    std::unordered_map<size_t, SpatialGrid3D> gridB;
-    std::unordered_map<size_t, std::vector<size_t>> tagged_Atris;
-    std::unordered_map<size_t, std::vector<size_t>> tagged_Btris;
-    auto addSegmentsToGrid = [&](size_t idx, const PolyLine& poly, 
-                                 std::unordered_map<size_t, SpatialGrid3D>& grid, 
-                                 size_t tag) {
-        auto [it, _] = grid.try_emplace(tag, ctx.eps);
-        for (const auto& segment : poly) {
-            it->second.getOrAdd(segment.first);
-            it->second.getOrAdd(segment.second);
+
+    auto processSide = [&](
+        const std::unordered_map<size_t, PolyLine>& NCcoords,
+        const std::unordered_map<size_t, std::vector<PolyLine>>& Ccoords,
+        const std::unordered_map<size_t, std::vector<size_t>>& tris,
+        const MeshData& srcMesh,
+        const MeshData& targetMesh,
+        std::unordered_map<size_t, std::vector<Vec3>>& outCoords,
+        std::unordered_map<size_t, std::vector<size_t>>& outTaggedTris)
+    {
+        std::unordered_map<size_t, SpatialGrid3D> grids;
+        auto addSegmentsToGrid = [&](size_t idx, const PolyLine& poly) {
+            size_t tag = srcMesh.tags[idx];
+            auto [it, _] = grids.try_emplace(tag, ctx.eps);
+            for (const std::pair<Vec3, Vec3>& segment : poly) {
+                it->second.getOrAdd(segment.first);
+                it->second.getOrAdd(segment.second);
+            }
+        };
+        for (const auto& [idx, poly] : NCcoords) {
+            addSegmentsToGrid(idx, poly);
+        }
+        for (const auto& [idx, poly_list] : Ccoords) {
+            for (const auto& poly : poly_list) {
+                addSegmentsToGrid(idx, poly);
+            }
+        }
+        for (const auto& [tag, grid] : grids) {
+            outCoords[tag] = grid.getUniquePoints();
+        }
+        for (const auto& [idx, list] : tris) {
+            size_t tagSrc = srcMesh.tags[idx];
+            std::vector<size_t>& new_list = outTaggedTris[tagSrc];
+            for (size_t target_idx : list) {
+                new_list.push_back(targetMesh.tags[target_idx]);
+            }
         }
     };
-    for (const auto& [idx, poly] : ctx.NCAcoords) {
-        addSegmentsToGrid(idx, poly, gridA, ctx.meshDataA.tags[idx]);
-    }
-    for (const auto& [idx, poly_list] : ctx.CAcoords) {
-        for (const auto& poly : poly_list) {
-            addSegmentsToGrid(idx, poly, gridA, ctx.meshDataA.tags[idx]);
-        }
-    }
-    for (const auto& [idx, poly] : ctx.NCBcoords) {
-        addSegmentsToGrid(idx, poly, gridB, ctx.meshDataB.tags[idx]);
-    }
-    for (const auto& [idx, poly_list] : ctx.CBcoords) {
-        for (const auto& poly : poly_list) {
-            addSegmentsToGrid(idx, poly, gridB, ctx.meshDataB.tags[idx]);
-        }
-    }
-    std::unordered_map<size_t, std::vector<Vec3>> aCoords;
-    std::unordered_map<size_t, std::vector<Vec3>> bCoords;
-    for (const auto& [tag, grid] : gridA) {
-        aCoords[tag] = grid.getUniquePoints();
-    }
-    for (const auto& [tag, grid] : gridB) {
-        bCoords[tag] = grid.getUniquePoints();
-    }
-    for (const auto& [idx, list] : ctx.Atris) {
-        size_t tagA = ctx.meshDataA.tags[idx];
-        auto& new_list = tagged_Atris[tagA];
-        for (size_t target_idx : list) {
-            new_list.push_back(ctx.meshDataB.tags[target_idx]);
-        }
-    }
-    for (const auto& [idx, list] : ctx.Btris) {
-        size_t tagB = ctx.meshDataB.tags[idx];
-        auto& new_list = tagged_Btris[tagB];
-        for (size_t target_idx : list) {
-            new_list.push_back(ctx.meshDataA.tags[target_idx]);
-        }
-    }
+    std::unordered_map<size_t, std::vector<Vec3>> aCoords, bCoords;
+    std::unordered_map<size_t, std::vector<size_t>> tagged_Atris, tagged_Btris;
+
+    processSide(ctx.NCAcoords, ctx.CAcoords, ctx.Atris, ctx.meshDataA, ctx.meshDataB, aCoords, tagged_Atris);
+    processSide(ctx.NCBcoords, ctx.CBcoords, ctx.Btris, ctx.meshDataB, ctx.meshDataA, bCoords, tagged_Btris);
     return Connection(aCoords, bCoords, tagged_Atris, tagged_Btris);
 }
 CollisionContext collideAndCut(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B, bool removeTouchingSurfaces){
@@ -154,9 +146,11 @@ bem::TriangleMesh<3> meshIntersect(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>
 void meshDifference(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B, bool cleanDegenerate){
     CollisionContext ctx = collideAndCut(A, B, false);
     std::vector<bool> removeAInB = getRemovalMask(ctx.meshDataA, ctx.meshDataB, ctx.eps, BoolOp::Difference, true);
-    std::vector<bool> removeBNotInA = getRemovalMask(ctx.meshDataB, ctx.meshDataA, ctx.eps, BoolOp::Difference, false);
     std::vector<bool> removeBInA = getRemovalMask(ctx.meshDataB, ctx.meshDataA, ctx.eps, BoolOp::Difference, true);
-    std::vector<bool> removeANotInB = getRemovalMask(ctx.meshDataA, ctx.meshDataB, ctx.eps, BoolOp::Difference, false);
+    std::vector<bool> removeBNotInA = removeBInA;
+    std::vector<bool> removeANotInB = removeAInB;
+    for (auto it = removeBNotInA.begin(), e = removeBNotInA.end(); it != e; ++it) *it = !*it;
+    for (auto it = removeANotInB.begin(), e = removeANotInB.end(); it != e; ++it) *it = !*it;
     MeshData bInA = ctx.meshDataB;
     MeshData aInB = ctx.meshDataA;
     filterMesh(ctx.meshDataA, removeAInB);

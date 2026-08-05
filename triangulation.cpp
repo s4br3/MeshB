@@ -50,16 +50,16 @@ void buildSubdividedEdges(
             }
         }
     }
-    for (const auto& p : candidate_pts) {
+    for (const CDT::V2d<double>& p : candidate_pts) {
         grid.getOrAdd(p);
     }
-    for (const auto& seg : segs) {
+    for (const std::pair<size_t, size_t>& seg : segs) {
         CDT::V2d<double> start = initialPts[seg.first];
         CDT::V2d<double> end   = initialPts[seg.second];
         double seg_len = std::hypot(end.x - start.x, end.y - start.y);
         if (seg_len < eps) continue;
         std::vector<std::pair<double, CDT::VertInd>> pointsOnSeg;
-        for (const auto& p : candidate_pts) {
+        for (const CDT::V2d<double>& p : candidate_pts) {
             double d1 = std::hypot(p.x - start.x, p.y - start.y);
             double d2 = std::hypot(end.x - p.x, end.y - p.y);
             if (std::abs((d1 + d2) - seg_len) < eps) {
@@ -89,14 +89,14 @@ std::vector<Triangle> triangulate(
     if (polygonSegments.empty() && cuts.empty()) return {};
     std::vector<CDT::V2d<double>> initialPts;
     std::vector<std::pair<size_t, size_t>> segs;
-    for (const auto& seg : polygonSegments) {
+    for (const std::pair<Vec3, Vec3>& seg : polygonSegments) {
         size_t idx1 = initialPts.size();
         initialPts.push_back(frame.to2D(seg.first));
         size_t idx2 = initialPts.size();
         initialPts.push_back(frame.to2D(seg.second));
         segs.push_back({idx1, idx2});
     }
-    for (const auto& cut : cuts) {
+    for (const std::pair<Vec3, Vec3>& cut : cuts) {
         size_t idx1 = initialPts.size();
         initialPts.push_back(frame.to2D(cut.first));
         size_t idx2 = initialPts.size();
@@ -122,7 +122,7 @@ std::vector<Triangle> triangulate(
     }
     std::vector<Triangle> result;
     result.reserve(cdt.triangles.size());
-    for (const auto& tri : cdt.triangles) {
+    for (const CDT::Triangle& tri : cdt.triangles) {
         Triangle newTri;
         newTri.v = {
             localToGlobal[tri.vertices[0]],
@@ -142,12 +142,26 @@ std::vector<Triangle> cutTriangles(
     SpatialGrid3D& nodeGrid,
     bool coplanar)
 {
-    PolyLine segs;
-    for (const Triangle& tri : tris){
-        segs.push_back({nodes[tri.v[0]], nodes[tri.v[1]]});
-        segs.push_back({nodes[tri.v[1]], nodes[tri.v[2]]});
-        segs.push_back({nodes[tri.v[2]], nodes[tri.v[0]]});
+    std::unordered_map<std::pair<size_t, size_t>, size_t> edgeCounts;
+    std::unordered_map<std::pair<size_t, size_t>, std::pair<Vec3, Vec3>> edgeGeom;
+    for (const Triangle& tri : tris) {
+        for (int i = 0; i < 3; ++i) {
+            size_t u = tri.v[i];
+            size_t v = tri.v[(i + 1) % 3];
+            std::pair<size_t, size_t> key = {std::min(u, v), std::max(u, v)};
+            edgeCounts[key]++;
+            if (edgeCounts[key] == 1) {
+                edgeGeom[key] = {nodes[u], nodes[v]};
+            }
+        }
     }
+    PolyLine segs;
+    for (const auto& [key, count] : edgeCounts) {
+        if (count == 1) {
+            segs.push_back(edgeGeom[key]);
+        }
+    }
+
     return triangulate(segs, cuts, frame, eps, nodeGrid, coplanar);
 }
 MeshData cutMesh(
@@ -158,7 +172,7 @@ MeshData cutMesh(
     bool removeInternalSurfaces)
 {
     SpatialGrid3D nodeGrid(eps);
-    for (const auto& node : meshData.nodes) {
+    for (const Vec3& node : meshData.nodes) {
         nodeGrid.getOrAdd(node);
     }
     std::unordered_set<size_t> modifiedIndices;
@@ -176,13 +190,13 @@ MeshData cutMesh(
             outData.tags.push_back(meshData.tags[i]);
             continue;
         }
-        const auto& tri = meshData.triangles[i];
-        const auto& tag = meshData.tags[i];
+        const Triangle& tri = meshData.triangles[i];
+        const size_t tag = meshData.tags[i];
         ProjectionFrame frame = computeSharedFrame(tri.normal(meshData.nodes), meshData.nodes[tri.v[0]]);
         PolyLine CCuts;
         auto itC = Ccoords.find(i);
         if (itC != Ccoords.end()) {
-            auto temp = flattenVector(itC->second);
+            PolyLine temp = flattenVector(itC->second);
             CCuts.insert(CCuts.end(), temp.begin(), temp.end());
         }
         std::vector<Triangle> subTris = cutTriangles({tri}, meshData.nodes, CCuts, frame, eps, nodeGrid, true);
