@@ -30,33 +30,19 @@ MeshData extractMeshData(const bem::TriangleMesh<3>& mesh) {
 }
 
 void rebuildMesh(bem::TriangleMesh<3>& mesh, const MeshData& newMesh, double eps) {
-    SpatialGrid3D grid(eps);
-    std::vector<std::array<size_t, 3>> flat_elements;
-    std::vector<size_t> tags;
-    for (const Triangle& tri : newMesh.triangles) {
-        std::array<size_t, 3> element;
-        for (int i = 0; i < 3; ++i) {
-            element[i] = grid.getOrAdd(newMesh.nodes[tri.v[i]]);
-        }
-        flat_elements.push_back(element);
+    Eigen::Matrix<double, 3, Eigen::Dynamic> verts(3, newMesh.nodes.size());
+    Eigen::Matrix<size_t, 3, Eigen::Dynamic> elems(3, newMesh.triangles.size());
+    Eigen::Matrix<size_t, 1, Eigen::Dynamic> elem_tags(1, newMesh.tags.size());
+    for (size_t i = 0; i < newMesh.nodes.size(); ++i) {
+        verts(0, i) = newMesh.nodes[i][0];
+        verts(1, i) = newMesh.nodes[i][1];
+        verts(2, i) = newMesh.nodes[i][2];
     }
-    const std::vector<Vec3>& flat_vertices = grid.getUniquePoints();
-    for (const size_t& tag : newMesh.tags) {
-        tags.push_back(tag);
-    }
-    Eigen::Matrix<double, 3, Eigen::Dynamic> verts(3, flat_vertices.size());
-    Eigen::Matrix<size_t, 3, Eigen::Dynamic> elems(3, flat_elements.size());
-    Eigen::Matrix<size_t, 1, Eigen::Dynamic> elem_tags(1, tags.size());
-    for (size_t i = 0; i < flat_vertices.size(); ++i) {
-        verts(0, i) = flat_vertices[i][0];
-        verts(1, i) = flat_vertices[i][1];
-        verts(2, i) = flat_vertices[i][2];
-    }
-    for (size_t i = 0; i < flat_elements.size(); ++i) {
-        elems(0, i) = flat_elements[i][0];
-        elems(1, i) = flat_elements[i][1];
-        elems(2, i) = flat_elements[i][2];
-        elem_tags(0, i) = tags[i];
+    for (size_t i = 0; i < newMesh.triangles.size(); ++i) {
+        elems(0, i) = newMesh.triangles[i].v[0];
+        elems(1, i) = newMesh.triangles[i].v[1];
+        elems(2, i) = newMesh.triangles[i].v[2];
+        elem_tags(0, i) = newMesh.tags[i];
     }
     mesh.set_data(verts, elems, elem_tags);
 }

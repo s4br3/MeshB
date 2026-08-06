@@ -1,4 +1,5 @@
 #include "mesh_clean.hpp"
+#include "mesh_types.hpp"
 #include <numeric>
 
 void filterMesh(MeshData& mesh, const std::vector<bool>& remove) {
@@ -66,7 +67,6 @@ void unionNodes(std::vector<size_t>& parent, size_t i, size_t j) {
 }
 
 void collapseSlivers(MeshData& mesh, double eps) {
-    const double eps2 = eps * eps;
     const size_t nNodes = mesh.nodes.size();
     if (nNodes == 0) return;
     std::vector<size_t> parent(nNodes);
@@ -76,7 +76,7 @@ void collapseSlivers(MeshData& mesh, double eps) {
             size_t v0 = t.v[i];
             size_t v1 = t.v[(i + 1) % 3];
             Vec3 diff = mesh.nodes[v1] - mesh.nodes[v0];
-            if (BVH::dot(diff, diff) < eps2) {
+            if (BVH::dot(diff, diff) < eps * eps) {
                 unionNodes(parent, v0, v1);
             }
         }
@@ -91,7 +91,6 @@ void collapseSlivers(MeshData& mesh, double eps) {
 void removeDegenerateTriangles(MeshData& mesh) {
     std::vector<Triangle> goodTriangles;
     std::vector<size_t> goodTags;
-
     for (size_t i = 0; i < mesh.triangles.size(); ++i) {
         const Triangle& t = mesh.triangles[i];
         if (t.v[0] != t.v[1] && t.v[1] != t.v[2] && t.v[2] != t.v[0]) {
@@ -99,7 +98,6 @@ void removeDegenerateTriangles(MeshData& mesh) {
             goodTags.push_back(mesh.tags[i]);
         }
     }
-
     mesh.triangles = std::move(goodTriangles);
     mesh.tags = std::move(goodTags);
 }
@@ -108,13 +106,7 @@ void cleanMesh(MeshData& mesh, double eps) {
     collapseSlivers(mesh, eps);
     removeDegenerateTriangles(mesh);
     clearUnusedNodes(mesh);
-    const size_t numTris = mesh.triangles.size();
-    mesh.centres.resize(numTris);
-    mesh.normals.resize(numTris);
-    for (size_t i = 0; i < numTris; ++i) {
-        mesh.centres[i] = mesh.triangles[i].centre(mesh.nodes);
-        mesh.normals[i] = mesh.triangles[i].normal(mesh.nodes);
-    }
+    recomputeMeshData(mesh);
 }
 
 void invertWinding(MeshData& mesh) {
@@ -149,9 +141,7 @@ MeshData combineMeshes(const std::vector<MeshData>& meshes, double eps) {
             combined.tags.push_back(tag + tagOffset);
             currentMeshMaxTag = std::max(currentMeshMaxTag, tag);
         }
-        if (!mesh.tags.empty()) {
-            tagOffset += currentMeshMaxTag + 1;
-        }
+        tagOffset += currentMeshMaxTag + 1;
     }
     combined.nodes = grid.getUniquePoints();
     clearUnusedNodes(combined);

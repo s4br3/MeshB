@@ -41,7 +41,7 @@ int countRayIntersections(
     Vec3 invDir = {1.0 / dir[0], 1.0 / dir[1], 1.0 / dir[2]};
     int hitCount = 0;
     std::vector<size_t> stack;
-    stack.reserve(64);
+    stack.reserve(32);
     stack.push_back(0);
     while (!stack.empty()) {
         size_t nodeIdx = stack.back();
@@ -87,7 +87,7 @@ FaceClass classifyFace(
 {
     if (!targetBvh.nodes.empty()) {
         std::vector<size_t> stack;
-        stack.reserve(64);
+        stack.reserve(32);
         stack.push_back(0);
         BBox ptBox = BBox::make_empty();
         ptBox.extend(triCentre - Vec3{eps, eps, eps});

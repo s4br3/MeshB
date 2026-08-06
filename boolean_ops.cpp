@@ -29,17 +29,10 @@ std::vector<bool> getRemovalMask(const MeshData& meshA, const MeshData& meshB, d
                 else if (fclass == FaceClass::CoplanarOpp)  keep = false;
                 break;
             case BoolOp::Difference:
-                if (isMeshA) {
-                    if (fclass == FaceClass::Outside)       keep = true;
-                    else if (fclass == FaceClass::Inside)  keep = false;
-                    else if (fclass == FaceClass::CoplanarSame) keep = false;
-                    else if (fclass == FaceClass::CoplanarOpp)  keep = true;
-                } else {
-                    if (fclass == FaceClass::Outside)       keep = false;
-                    else if (fclass == FaceClass::Inside)  keep = true;
-                    else if (fclass == FaceClass::CoplanarSame) keep = false;
-                    else if (fclass == FaceClass::CoplanarOpp)  keep = false;
-                }
+                if (fclass == FaceClass::Outside) keep = isMeshA;
+                else if (fclass == FaceClass::Inside) keep = !isMeshA;
+                else if (fclass == FaceClass::CoplanarSame) keep = false;
+                else if (fclass == FaceClass::CoplanarSame) keep = isMeshA;
                 break;
         }
         removeA[i] = !keep;

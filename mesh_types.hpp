@@ -156,7 +156,8 @@ struct ProjectionFrame {
     Vec3 to3D(const CDT::V2d<double>& p) const {
         return origin + u * p.x + v * p.y;
     }
-};namespace std {
+};
+namespace std {
 
     /**
     * @brief Hashing for pairs of values (to be used for unordered_map)

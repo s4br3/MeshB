@@ -50,7 +50,7 @@ std::optional<std::pair<Vec3, Vec3>> segmentAOnB(
         double dOther = distances[iOther];
         double dUnique = distances[unique];
         double denom = (dOther - dUnique);
-        if (std::fabs(denom) <= eps) {
+        if (std::abs(denom) <= eps) {
             return vertices[unique];
         }
         double t = dOther / denom;
@@ -68,9 +68,6 @@ std::optional<std::pair<Vec3, Vec3>> findIntersectionPointsNC(
     std::array<double, 3> distAB = distancesToPlane(vertices1, n2, c2);
     std::array<double, 3> distBA = distancesToPlane(vertices2, n1, c1);
     Vec3 direction = BVH::cross(n1, n2);
-    if (BVH::dot(direction, direction) <= eps * eps) {
-        return std::nullopt;
-    }
     size_t largestAxis = direction.get_largest_axis();
     std::optional<std::pair<Vec3, Vec3>> temp1 = segmentAOnB(vertices1, distAB, eps);
     std::optional<std::pair<Vec3, Vec3>> temp2 = segmentAOnB(vertices2, distBA, eps);
@@ -107,12 +104,12 @@ std::vector<Vec3> findIntersectionPointsC(
         out.clear();
         out.reserve(6);
         Vec3 S = poly.back();
+        double distS = BVH::dot(S - e0, inwardNormal);
+        bool SInside = (distS * s) >= -eps;
         for (size_t j = 0; j < poly.size(); ++j) {
             const Vec3& E = poly[j];
             double distE = BVH::dot(E - e0, inwardNormal);
-            double distS = BVH::dot(S - e0, inwardNormal);
             bool EInside = (distE * s) >= -eps;
-            bool SInside = (distS * s) >= -eps;
             if (EInside) {
                 if (!SInside) {
                     double denom = (distS - distE);
@@ -150,32 +147,27 @@ void findAllCollisions(
     CollisionContext& ctx)
 {
     std::vector<std::pair<size_t, size_t>> stack;
-    stack.reserve(128);
+    stack.reserve(64);
     stack.emplace_back(0, 0);
     while (!stack.empty()) {
         auto [node1Idx, node2Idx] = stack.back();
         stack.pop_back();
         const Node& node1 = bvh1.nodes[node1Idx];
         const Node& node2 = bvh2.nodes[node2Idx];
-        
         if (!boundingBoxOverlap(node1.get_bbox(), node2.get_bbox(), ctx.eps)) {
             continue;
         }
-        
         if (node1.is_leaf() && node2.is_leaf()) {
             size_t prim1Id = bvh1.prim_ids[node1.index.first_id()];
             size_t prim2Id = bvh2.prim_ids[node2.index.first_id()];
-            const Triangle& t1 = ctx.meshDataA.triangles[prim1Id];
-            const Triangle& t2 = ctx.meshDataB.triangles[prim2Id];
-            const TriVerts& vs1 = t1.getVertices(ctx.meshDataA.nodes);
-            const TriVerts& vs2 = t2.getVertices(ctx.meshDataB.nodes);
+            const TriVerts& t1 = ctx.meshDataA.triangles[prim1Id].getVertices(ctx.meshDataA.nodes);
+            const TriVerts& t2 = ctx.meshDataB.triangles[prim2Id].getVertices(ctx.meshDataB.nodes);
             const Vec3& n1 = ctx.meshDataA.normals[prim1Id];
             const Vec3& n2 = ctx.meshDataB.normals[prim2Id];
             const Vec3& c1 = ctx.meshDataA.centres[prim1Id];
             const Vec3& c2 = ctx.meshDataB.centres[prim2Id];            
-            
             if (coplanar(n1, c1, n2, c2, ctx.eps)) {
-                std::vector<Vec3> res = findIntersectionPointsC(vs1, vs2, n2, c2, ctx.eps);
+                std::vector<Vec3> res = findIntersectionPointsC(t1, t2, n2, c2, ctx.eps);
                 if (res.size() > 1) {
                     ctx.Atris[prim1Id].push_back(prim2Id);
                     ctx.Btris[prim2Id].push_back(prim1Id);
@@ -187,7 +179,7 @@ void findAllCollisions(
                     ctx.CBcoords[prim2Id].push_back(temp);
                 }
             } else {
-                if (std::optional<std::pair<Vec3, Vec3>> optResult = findIntersectionPointsNC(vs1, n1, c1, vs2, n2, c2, ctx.eps)){
+                if (std::optional<std::pair<Vec3, Vec3>> optResult = findIntersectionPointsNC(t1, n1, c1, t2, n2, c2, ctx.eps)){
                     auto [startPt, endPt] = *optResult;
                     ctx.Atris[prim1Id].push_back(prim2Id);
                     ctx.Btris[prim2Id].push_back(prim1Id);
@@ -204,7 +196,6 @@ void findAllCollisions(
             }
             continue;
         }
-        
         if (node1.is_leaf()) {
             size_t l2 = node2.index.first_id();
             stack.emplace_back(node1Idx, l2);

@@ -5,7 +5,7 @@
 #include <optional>
 #include <bvh/v2/default_builder.h>
 
-using Node = BVH::Node<Scalar, 3>;
+using Node = BVH::Node<double, 3>;
 using TriVerts = std::array<Vec3, 3>;
 using Bvh  = BVH::Bvh<Node>;
 

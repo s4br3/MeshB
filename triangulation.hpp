@@ -5,7 +5,7 @@
 /**
 * @brief Alias for Constrained Delaunay Triangulation structure.
 */
-using CDT_Triangulation = CDT::Triangulation<Scalar>;
+using CDT_Triangulation = CDT::Triangulation<double>;
 
 /**
 * @brief Constructs an orthonormal 2D projection frame for a planar surface.
@@ -21,14 +21,17 @@ ProjectionFrame computeSharedFrame(const Vec3& normal, const Vec3& origin);
 * @param[in] B - End point of segment 1.
 * @param[in] C - Start point of segment 2.
 * @param[in] D - End point of segment 2.
-* @param[out] out - Calculated 2D intersection point coordinate.
+* @param [in, out] grid - 2D grid used for vertex deduplication and storing.
+* @param[in, out] out - Vector of indices of points in the 2D spatial grid.
 * @param[in] eps - Distance tolerance.
 * @return True if segments intersect within valid bounds.
 */
-bool intersect2D(
+static void intersect2DAllPoints(
     const CDT::V2d<double>& A, const CDT::V2d<double>& B,
     const CDT::V2d<double>& C, const CDT::V2d<double>& D,
-    CDT::V2d<double>& out, double eps);
+    SpatialGrid2D& grid,
+    std::vector<CDT::VertInd>& outs,
+    double eps);
 
 /**
 * @brief Deduplicates a 2D point against an existing point array.

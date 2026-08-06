@@ -68,19 +68,18 @@ void saveMSH(const bem::TriangleMesh<3>& mesh, const std::string& filename) {
     std::vector<size_t> nodeTags;
     nodeTags.reserve(numVerts);
     for (size_t i = 0; i < numVerts; ++i) {
-        nodeTags.push_back(i + 1); // 1-based tags
+        nodeTags.push_back(i + 1);
         flatCoords.push_back(verts(0, i));
         flatCoords.push_back(verts(1, i));
         flatCoords.push_back(verts(2, i));
     }
     gmsh::model::mesh::addNodes(2, surfaceTag, nodeTags, flatCoords);
-    int elementType = 2; // 3-node Triangle
+    int elementType = 2;
     std::vector<size_t> elementNodeTags;
     elementNodeTags.reserve(numElems * 3);
     std::vector<size_t> elementTags;
     elementTags.reserve(numElems);
     for (size_t i = 0; i < numElems; ++i) {
-        // Convert 0-based Eigen matrix indices to 1-based Gmsh tags
         elementNodeTags.push_back(elems(0, i) + 1);
         elementNodeTags.push_back(elems(1, i) + 1);
         elementNodeTags.push_back(elems(2, i) + 1);

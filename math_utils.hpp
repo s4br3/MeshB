@@ -10,9 +10,8 @@
 #include <CDT.h>
 
 namespace BVH = bvh::v2;
-using Scalar = double;
-using Vec3 = BVH::Vec<Scalar, 3>;
-using BBox = BVH::BBox<Scalar, 3>;
+using Vec3 = BVH::Vec<double, 3>;
+using BBox = BVH::BBox<double, 3>;
 
 /**
 * @brief Formatted stream output operator for a 3D vector.
