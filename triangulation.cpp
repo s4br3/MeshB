@@ -16,8 +16,8 @@ ProjectionFrame computeSharedFrame(const Vec3& normal, const Vec3& origin) {
     } else {
         helper[2] = 1.0;
     }
-    frame.u = BVH::normalize(BVH::cross(helper, normal));
-    frame.v = BVH::cross(normal, frame.u);
+    frame.u = cross(helper, normal).normalize();
+    frame.v = cross(normal, frame.u).normalize();
     return frame;
 }
 static bool pointOnSegment(
@@ -30,7 +30,7 @@ static bool pointOnSegment(
     double wx = P.x - A.x, wy = P.y - A.y;
     double cross = vx * wy - vy * wx;
     if (std::abs(cross) > eps) return false;
-    auto inRange = [eps](double v, double a, double b){
+    auto inRange = [eps](double v, double a, double b) {
         return v >= std::min(a,b) - eps && v <= std::max(a,b) + eps;
     };
     return inRange(P.x, A.x, B.x) && inRange(P.y, A.y, B.y);
@@ -48,7 +48,7 @@ static void intersect2DAllPoints(
     double x34 = D.x - C.x, y34 = D.y - C.y;
     double x13 = C.x - A.x, y13 = C.y - A.y;
     double denom = x12 * y34 - y12 * x34;
-    auto addIdUnique = [&](CDT::VertInd id){
+    auto addIdUnique = [&](CDT::VertInd id) {
         for (auto existing : outs) {
             if (existing == id) return;
         }
@@ -69,7 +69,6 @@ static void intersect2DAllPoints(
     if (pointOnSegment(A, C, D, eps)) addIdUnique(grid.getOrAdd(A));
     if (pointOnSegment(B, C, D, eps)) addIdUnique(grid.getOrAdd(B));
 }
-//Potential optimisation - sweep line algorithm
 void buildSubdividedEdges(
     const std::vector<CDT::V2d<double>>& initialPts,
     const std::vector<std::pair<size_t, size_t>>& segs,
@@ -79,14 +78,21 @@ void buildSubdividedEdges(
 {
     outUniquePts.clear();
     outCDTEdges.clear();
+    if (segs.empty()) return;
     SpatialGrid2D grid(eps);
     std::vector<std::vector<CDT::VertInd>> pointsOnSegments(segs.size());
-    for (size_t i = 0; i < segs.size() - 1; i++){
+    // 1. Populate initial endpoints for ALL segments
+    for (size_t i = 0; i < segs.size(); ++i) {
         CDT::V2d<double> A = initialPts[segs[i].first];
         CDT::V2d<double> B = initialPts[segs[i].second];
         pointsOnSegments[i].push_back(grid.getOrAdd(A));
         pointsOnSegments[i].push_back(grid.getOrAdd(B));
-        for (size_t j = i + 1; j < segs.size(); j++){
+    }
+    // 2. Compute 2D intersections between all segment pairs
+    for (size_t i = 0; i + 1 < segs.size(); ++i) {
+        CDT::V2d<double> A = initialPts[segs[i].first];
+        CDT::V2d<double> B = initialPts[segs[i].second];
+        for (size_t j = i + 1; j < segs.size(); ++j) {
             CDT::V2d<double> C = initialPts[segs[j].first];
             CDT::V2d<double> D = initialPts[segs[j].second];
             std::vector<CDT::VertInd> outs;
@@ -96,44 +102,52 @@ void buildSubdividedEdges(
         }
     }
     outUniquePts = grid.getUniquePoints();
-    for (size_t i = 0; i < segs.size(); i++){
+    for (size_t i = 0; i < segs.size(); ++i) {
         CDT::V2d<double> A = initialPts[segs[i].first];
         CDT::V2d<double> B = initialPts[segs[i].second];
+        const double vx = B.x - A.x;
+        const double vy = B.y - A.y;
+        const double lenSq = vx * vx + vy * vy;
+        if (lenSq <= eps * eps) continue;
         std::vector<CDT::VertInd> ids = pointsOnSegments[i];
         std::sort(ids.begin(), ids.end());
         ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
-        const double vx = B.x - A.x;
-        const double vy = B.y - A.y;
-        std::sort(ids.begin(), ids.end(), [&](CDT::VertInd id1, CDT::VertInd id2){
-            const CDT::V2d<double>& P1 = outUniquePts[id1];
-            const CDT::V2d<double>& P2 = outUniquePts[id2];
-            //Not actually the parameters t1 and t2, but sufficient for sorting
-            const double t1 = ((P1.x - A.x) * vx + (P1.y - A.y) * vy);
-            const double t2 = ((P2.x - A.x) * vx + (P2.y - A.y) * vy);
-            return t1 < t2;
-        });
-        for (size_t k = 0; k + 1 < ids.size(); ++k) {
-            outCDTEdges.emplace_back(ids[k], ids[k + 1]);
+        std::vector<std::pair<double, CDT::VertInd>> parametrized;
+        parametrized.reserve(ids.size());
+        for (CDT::VertInd id : ids) {
+            const CDT::V2d<double>& P = outUniquePts[id];
+            double t = ((P.x - A.x) * vx + (P.y - A.y) * vy) / lenSq;
+            parametrized.push_back({t, id});
+        }
+        std::sort(parametrized.begin(), parametrized.end());
+        std::vector<CDT::VertInd> cleanIds;
+        cleanIds.reserve(parametrized.size());
+        for (const auto& [t, id] : parametrized) {
+            if (cleanIds.empty() || cleanIds.back() != id) {
+                cleanIds.push_back(id);
+            }
+        }
+        for (size_t k = 0; k + 1 < cleanIds.size(); ++k) {
+            if (cleanIds[k] != cleanIds[k + 1]) {
+                outCDTEdges.emplace_back(cleanIds[k], cleanIds[k + 1]);
+            }
         }
     }
 }
 std::vector<Triangle> triangulate(
-    const PolyLine& polygonSegments,
-    const PolyLine& cuts,
-    const ProjectionFrame& frame,
-    const double eps,
-    SpatialGrid3D& nodeGrid,
-    bool coplanar)
+    const PolyLine& polygonSegments, const PolyLine& cuts,
+    const ProjectionFrame& frame, SpatialGrid3D& nodeGrid,
+    bool coplanar, const double eps)
 {
     if (polygonSegments.empty() && cuts.empty()) return {};
     std::vector<CDT::V2d<double>> initialPts;
     std::vector<std::pair<size_t, size_t>> segs;
-    for (const std::pair<Vec3, Vec3>& seg : polygonSegments){
+    for (const std::pair<Vec3, Vec3>& seg : polygonSegments) {
         size_t idx1 = nodeGrid.getOrAdd(seg.first);
         size_t idx2 = nodeGrid.getOrAdd(seg.second);
         if (idx1 != idx2) segs.push_back({idx1, idx2});
     }
-    for (const std::pair<Vec3, Vec3>& cut : cuts){
+    for (const std::pair<Vec3, Vec3>& cut : cuts) {
         size_t idx1 = nodeGrid.getOrAdd(cut.first);
         size_t idx2 = nodeGrid.getOrAdd(cut.second);
         if (idx1 != idx2) segs.push_back({idx1, idx2});
@@ -158,7 +172,7 @@ std::vector<Triangle> triangulate(
     CDT_Triangulation cdt;
     cdt.insertVertices(uniquePts);
     cdt.conformToEdges(CDTEdges);
-    if (coplanar){
+    if (coplanar) {
         cdt.eraseOuterTrianglesAndHoles();
     } else {
         cdt.eraseOuterTriangles();
@@ -181,13 +195,9 @@ std::vector<Triangle> triangulate(
     return result;
 }
 std::vector<Triangle> cutTriangles(
-    const std::vector<Triangle>& tris,
-    const std::vector<Vec3>& nodes, 
-    const PolyLine& cuts,
-    const ProjectionFrame& frame,
-    const double eps,
-    SpatialGrid3D& nodeGrid,
-    bool coplanar)
+    const std::vector<Triangle>& tris, const std::vector<Vec3>& nodes, const PolyLine& cuts,
+    const ProjectionFrame& frame, SpatialGrid3D& nodeGrid,
+    bool coplanar, const double eps)
 {
     std::unordered_map<std::pair<size_t, size_t>, size_t> edgeCounts;
     std::unordered_map<std::pair<size_t, size_t>, std::pair<Vec3, Vec3>> edgeGeom;
@@ -209,7 +219,7 @@ std::vector<Triangle> cutTriangles(
         }
     }
 
-    return triangulate(segs, cuts, frame, eps, nodeGrid, coplanar);
+    return triangulate(segs, cuts, frame, nodeGrid, coplanar, eps);
 }
 MeshData cutMesh(
     const MeshData& meshData,
@@ -244,13 +254,13 @@ MeshData cutMesh(
             PolyLine temp = flattenVector(itC->second);
             CCuts.insert(CCuts.end(), temp.begin(), temp.end());
         }
-        std::vector<Triangle> subTris = cutTriangles({meshData.triangles[i]}, meshData.nodes, CCuts, frame, eps, nodeGrid, true);
+        std::vector<Triangle> subTris = cutTriangles({meshData.triangles[i]}, meshData.nodes, CCuts, frame, nodeGrid, true, eps);
         auto itNC = NCcoords.find(i);
         PolyLine NCCuts;
         if (itNC != NCcoords.end()) {
             NCCuts.insert(NCCuts.end(), itNC->second.begin(), itNC->second.end());
         }
-        subTris = cutTriangles(subTris, nodeGrid.getUniquePoints(), NCCuts, frame, eps, nodeGrid, removeInternalSurfaces);
+        subTris = cutTriangles(subTris, nodeGrid.getUniquePoints(), NCCuts, frame, nodeGrid, removeInternalSurfaces, eps);
         if (!subTris.empty()) {
             outData.triangles.push_back(subTris[0]);
             outData.tags.push_back(meshData.tags[i]);
@@ -258,7 +268,7 @@ MeshData cutMesh(
         }
         if (itC != Ccoords.end() && !removeInternalSurfaces) {
             for (const PolyLine& hole : itC->second) {
-                std::vector<Triangle> holeTris = triangulate(hole, {}, frame, eps, nodeGrid, false);
+                std::vector<Triangle> holeTris = triangulate(hole, {}, frame, nodeGrid, false, eps);
                 extraTriangles.insert(extraTriangles.end(), std::make_move_iterator(holeTris.begin()), std::make_move_iterator(holeTris.end()));
             }
         }

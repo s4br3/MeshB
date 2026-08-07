@@ -1,5 +1,5 @@
 #include "mesh_types.hpp"
-std::ostream& operator<<(std::ostream& os, const std::array<Vec3, 3>& vertices){
+std::ostream& operator<<(std::ostream& os, const std::array<Vec3, 3>& vertices) {
     return os << "[" << vertices[0] << ", " << vertices[1] << ", " << vertices[2] << "]";
 }
 
@@ -28,17 +28,17 @@ std::ostream& operator<<(std::ostream& os, const MeshData& mesh) {
     return os;
 }
 
-void recomputeMeshData(MeshData &mesh){
+void recomputeMeshData(MeshData &mesh) {
     int maxTag = 0;
     int tagged = mesh.tags.size();
-    for (int i = 0; i < mesh.triangles.size(); i++){
-        if (i < tagged){
+    for (int i = 0; i < mesh.triangles.size(); i++) {
+        if (i < tagged) {
             maxTag = maxTag > mesh.tags[i] ? maxTag : mesh.tags[i];
         }
         else{
             mesh.tags.push_back(maxTag + i - tagged);
         }
         mesh.centres.push_back(mesh.triangles[i].centre(mesh.nodes));
-        mesh.normals.push_back(mesh.triangles[i].normal(mesh.nodes));
+        mesh.normals.push_back(mesh.triangles[i].normal(mesh.nodes).normalize());
     }
 }

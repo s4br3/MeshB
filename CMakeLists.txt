@@ -7,14 +7,10 @@ include(FetchContent)
 set(ENABLE_BUILD_SHARED ON CACHE BOOL "" FORCE)
 set(CDT_USE_AS_COMPILED_LIBRARY OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
-    bvh
-    GIT_REPOSITORY https://github.com/madmann91/bvh.git
-    GIT_TAG        master
-)
-FetchContent_Declare(
     CDT
     GIT_REPOSITORY https://github.com/artem-ogre/CDT.git
-    GIT_TAG        master
+    GIT_TAG        763e826
+
 )
 FetchContent_Declare(
     OpenBEM
@@ -27,7 +23,7 @@ FetchContent_Declare(
     GIT_TAG        master
 )
 
-FetchContent_MakeAvailable(bvh CDT OpenBEM gmsh)
+FetchContent_MakeAvailable(CDT OpenBEM gmsh)
 
 find_package(OpenMP REQUIRED)
 
@@ -39,6 +35,7 @@ add_executable(main
     mesh_types.cpp
     triangulation.cpp
     raycast.cpp
+    vector.cpp
     bem_interop.cpp
     gmsh_interop.cpp
     mesh_clean.cpp
@@ -55,8 +52,4 @@ target_link_libraries(main PRIVATE
 
 if (TARGET shared)
     target_link_libraries(main PRIVATE shared)
-endif()
-
-if (TARGET bvh)
-    target_link_libraries(main PRIVATE bvh)
 endif()

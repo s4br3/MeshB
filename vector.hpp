@@ -1,27 +1,28 @@
-#include <initializer_list>
+#pragma once
+#include <iostream>
 #include <stdexcept>
-struct Vector {
+#include <array>
+#include <cmath>
+struct Vec3 {
     double x = 0.0, y = 0.0, z = 0.0;
-    int dim = 2;
-    static Vector from2D(double x_, double y_) {
-        Vector v; v.x = x_; v.y = y_; v.z = 0.0; v.dim = 2; return v;
+    double length() const {
+        return std::sqrt(x * x + y * y + z * z);
     }
-    static Vector from3D(double x_, double y_, double z_) {
-        Vector v; v.x = x_; v.y = y_; v.z = z_; v.dim = 3; return v;
+    Vec3 normalize() const {
+        return *this/length();
     }
-    Vector() = default;
-    Vector(std::initializer_list<double> xs) {
-        auto it = xs.begin();
-        int n = static_cast<int>(xs.size());
-        if (n == 2) {
-            x = *it++; y = *it++; z = 0.0; dim = 2;
-        } else if (n == 3) {
-            x = *it++; y = *it++; z = *it++; dim = 3;
-        } else {
-            throw std::invalid_argument("Vector must be constructed with {x,y} or {x,y,z}");
-        }
+    Vec3() = default;
+    Vec3(double px, double py, double pz){
+        x = px;
+        y = py;
+        z = pz;
     }
-    double operator[](size_t i) const {
+    Vec3(const std::array<double, 3>& p){
+        x = p[0];
+        y = p[1];
+        z = p[2];
+    }
+    double& operator[](size_t i) {
         switch (i) {
             case 0: return x;
             case 1: return y;
@@ -29,34 +30,97 @@ struct Vector {
             default: throw std::out_of_range("Vector index out of range");
         }
     }
-    Vector operator+(const Vector& rhs) const {
-        Vector r;
+    const double& operator[](size_t i) const {
+        switch (i) {
+            case 0: return x;
+            case 1: return y;
+            case 2: return z;
+            default: throw std::out_of_range("Vector index out of range");
+        }
+    }
+    Vec3 operator+(const Vec3& rhs) const {
+        Vec3 r;
         r.x = x + rhs.x;
         r.y = y + rhs.y;
         r.z = z + rhs.z;
-        r.dim = std::max(dim, rhs.dim);
         return r;
     }
-
-    Vector operator-(const Vector& rhs) const {
-        Vector r;
+    Vec3 operator-(const Vec3& rhs) const {
+        Vec3 r;
         r.x = x - rhs.x;
         r.y = y - rhs.y;
         r.z = z - rhs.z;
-        r.dim = std::max(dim, rhs.dim);
         return r;
     }
-    double dot(const Vector& rhs) const {
-        return x * rhs.x + y * rhs.y + z * rhs.z;
+    Vec3 operator*(const double rhs) const{
+        Vec3 r;
+        r.x = x * rhs;
+        r.y = y * rhs;
+        r.z = z * rhs;
+        return r;
     }
-    Vector cross(const Vector& rhs) const {
-        return Vector::from3D(
-            y * rhs.z - z * rhs.y,
-            z * rhs.x - x * rhs.z,
-            x * rhs.y - y * rhs.x
-        );
-    }
-    double cross2D(const Vector& rhs) const {
-        return x * rhs.y - y * rhs.x;
+    Vec3 operator/(const double rhs) const{
+        Vec3 r;
+        r.x = x / rhs;
+        r.y = y / rhs;
+        r.z = z / rhs;
+        return r;
     }
 };
+struct Vec2 {
+    double x = 0.0, y = 0.0;
+    double length() const {
+        return std::sqrt(x * x + y * y);
+    }
+    Vec2 normalize() const {
+        return *this/length();
+    }
+    Vec2() = default;
+    Vec2(double px, double py) {
+        x = px;
+        y = py;
+    }
+    Vec2(std::array<double, 2> p) {
+        x = p[0];
+        y = p[1];
+    }
+    double operator[](size_t i) const {
+        switch (i) {
+            case 0: return x;
+            case 1: return y;
+            default: throw std::out_of_range("Vector index out of range");
+        }
+    }
+    Vec2 operator+(const Vec2& rhs) const {
+        Vec2 r;
+        r.x = x + rhs.x;
+        r.y = y + rhs.y;
+        return r;
+    }
+    Vec2 operator-(const Vec2& rhs) const {
+        Vec2 r;
+        r.x = x - rhs.x;
+        r.y = y - rhs.y;
+        return r;
+    }
+    Vec2 operator*(const double rhs) const{
+        Vec2 r;
+        r.x = x * rhs;
+        r.y = y * rhs;
+        return r;
+    }
+    Vec2 operator/(const double rhs) const{
+        Vec2 r;
+        r.x = x / rhs;
+        r.y = y / rhs;
+        return r;
+    }
+
+};
+std::ostream& operator<<(std::ostream& os, const Vec3& v);
+std::ostream& operator<<(std::ostream& os, const Vec2& v);
+double dot(const Vec3& lhs, const Vec3& rhs);
+Vec3 cross(const Vec3& lhs, const Vec3& rhs);
+double cross2D(const Vec3& lhs, const Vec3& rhs);
+int getLargestAxis(const Vec3& v);
+int getLargestAxis(const Vec2& v);

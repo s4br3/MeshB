@@ -1,5 +1,6 @@
 #pragma once
 #include "mesh_types.hpp"
+#include "math_utils.hpp"
 
 
 /**
@@ -14,7 +15,18 @@ using CDT_Triangulation = CDT::Triangulation<double>;
 * @return Orthonormal ProjectionFrame object.
 */
 ProjectionFrame computeSharedFrame(const Vec3& normal, const Vec3& origin);
-
+/**
+* @brief Finds whether a point P is on the line segment AB
+* @param[in] P - Point to test
+* @param[in] A - Start point of segment.
+* @param[in] B - End point of segment.
+* @param[in] eps - Tolerance value.
+* return True if point is on line segment, false otherwise
+*/
+static bool pointOnSegment(
+    const CDT::V2d<double>& P,
+    const CDT::V2d<double>& A, const CDT::V2d<double>& B,
+    double eps);
 /**
 * @brief Computes 2D line-segment intersection point.
 * @param[in] A - Start point of segment 1.
@@ -32,15 +44,6 @@ static void intersect2DAllPoints(
     SpatialGrid2D& grid,
     std::vector<CDT::VertInd>& outs,
     double eps);
-
-/**
-* @brief Deduplicates a 2D point against an existing point array.
-* @param[in,out] unique_pts - Global list of unique 2D points.
-* @param[in] p - Query point coordinate.
-* @param[in] eps - Deduplication tolerance distance.
-* @return CDT vertex index corresponding to query point.
-*/
-CDT::VertInd getOrAddUniquePoint(std::vector<CDT::V2d<double>>& unique_pts, const CDT::V2d<double>& p, double eps);
 
 /**
 * @brief Subdivides overlapping constraints into a clean, planar constrained segment graph.
@@ -67,21 +70,24 @@ void buildSubdividedEdges(
 */
 std::vector<Triangle> triangulate(
     const PolyLine& polygonSegments, const PolyLine& cuts,
-    const ProjectionFrame& frame, double eps, SpatialGrid3D& nodeGrid, bool coplanar);
+    const ProjectionFrame& frame, SpatialGrid3D& nodeGrid,
+    bool coplanar, double eps);
 
 /**
 * @brief Subdivides and remeshes a list of triangles along intersection polylines.
 * @param[in] tris - Vector of triangles to cut.
+* @param[in] nodes - Vector of coordinates of vertices.
 * @param[in] cuts - Polyline cut paths crossing elements.
 * @param[in] frame - Planar projection frame.
-* @param[in] eps - Tolerance threshold.
 * @param[in,out] nodeGrid - Spatial node matching structure.
 * @param[in] coplanar - Coplanar surface flag.
+* @param[in] eps - Tolerance threshold.
 * @return Subdivided set of output triangles.
 */
 std::vector<Triangle> cutTriangles(
-    const std::vector<Triangle>& tris, const PolyLine& cuts,
-    const ProjectionFrame& frame, double eps, SpatialGrid3D& nodeGrid, bool coplanar);
+    const std::vector<Triangle>& tris, const std::vector<Vec3>& nodes, const PolyLine& cuts,
+    const ProjectionFrame& frame, SpatialGrid3D& nodeGrid,
+    bool coplanar, const double eps);
 
 /**
 * @brief Retriangulates and cuts an entire surface mesh along non-coplanar and coplanar intersection constraints.

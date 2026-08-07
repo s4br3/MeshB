@@ -1,6 +1,5 @@
 #pragma once
 #include "mesh_types.hpp"
-#include "bvh_collisions.hpp"
 
 /**
 * @brief Performs ray-triangle intersection test.
@@ -35,7 +34,7 @@ static bool rayBoxIntersect(const Vec3& orig, const Vec3& invDir, const BBox& bo
 * @return Total number of valid ray-triangle intersections.
 */
 int countRayIntersections(
-    const Bvh& bvh, const MeshData& mesh,
+    const BVH& bvh, const MeshData& mesh,
     const Vec3& orig, const Vec3& direction,
     double eps);
 
@@ -47,7 +46,7 @@ int countRayIntersections(
 * @param[in] eps - Distance tolerance.
 * @return True if point lies inside closed mesh volume.
 */
-bool isInsideMesh(const Bvh& bvh, const MeshData& mesh,
+bool isInsideMesh(const BVH& bvh, const MeshData& mesh,
     const Vec3& point,
     double eps);
 
@@ -59,7 +58,7 @@ enum class FaceClass { Outside, Inside, CoplanarSame, CoplanarOpp };
 
 /**
 * @brief Classifies a triangle face as inside, outside, or coplanar relative to a target surface mesh.
-* @param[in] targetBvh - BVH tree of target closed domain mesh.
+* @param[in] targetBVH - BVH tree of target closed domain mesh.
 * @param[in] targetMesh - Target mesh dataset.
 * @param[in] triCenter - Centroid of query triangle element.
 * @param[in] triNormal - Normal vector of query triangle element.
@@ -67,6 +66,6 @@ enum class FaceClass { Outside, Inside, CoplanarSame, CoplanarOpp };
 * @return FaceClass classification result.
 */
 FaceClass classifyFace(
-    const Bvh& targetBvh, const MeshData& targetMesh,
+    const BVH& targetBVH, const MeshData& targetMesh,
     const Vec3& triCenter, const Vec3& triNormal,
     double eps);

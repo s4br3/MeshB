@@ -1,6 +1,8 @@
+#include "mesh_types.hpp"
+#include "math_utils.hpp"
 #include "bem_interop.hpp"
-#include "boolean_ops.hpp"
 #include "bvh_collisions.hpp"
+#include "boolean_ops.hpp"
 #include "gmsh_interop.hpp"
 #include <gmsh.h>
 #include <gmsh.h>
@@ -23,7 +25,7 @@ bool verifyMeshConformity(const CollisionContext& ctx, const MeshData& meshA, co
             double epsSq = ctx.eps * ctx.eps * 4.0;
             for (const Vec3& node : mesh.nodes) {
                 Vec3 d = pt - node;
-                if (BVH::dot(d, d) <= epsSq) {
+                if (dot(d, d) <= epsSq) {
                     return true;
                 }
             }
@@ -41,7 +43,7 @@ bool verifyMeshConformity(const CollisionContext& ctx, const MeshData& meshA, co
                     missingPoints++;
                 }
                 Vec3 diff = seg.first - seg.second;
-                if (BVH::dot(diff, diff) > ctx.eps * ctx.eps) {
+                if (dot(diff, diff) > ctx.eps * ctx.eps) {
                     totalCutPointsChecked++;
                     if (!isNodeInMesh(seg.second)) {
                         //std::cout << "[" << meshLabel << " FAIL] Missing cut point: (" << seg.second[0] << ", " << seg.second[1] << ", " << seg.second[2] << ")\n";
@@ -166,10 +168,6 @@ void testMeshCombine(bem::TriangleMesh<3>& meshA,
     MeshData finalMeshB = extractMeshData(B);
     verifyMeshConformity(originalCtx, finalMeshA, finalMeshB);
 }
-
-// Example main usage
-#include <iostream>
-#include <string>
 
 int main(int argc, char** argv) {
     if (argc < 3) {

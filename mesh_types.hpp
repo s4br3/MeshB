@@ -1,8 +1,10 @@
 #pragma once
-#include "math_utils.hpp"
-#include <vector>
-#include <array>
+#include "vector.hpp"
+#include "bvh.hpp"
 #include <unordered_map>
+#include <CDT.h>
+
+using TriVerts = std::array<Vec3, 3>;
 
 /**
 * @brief Polyline defined as an ordered collection of 3D line segment endpoints.
@@ -40,8 +42,8 @@ struct Triangle {
     * @param[in] nodes - Global node list containing vertex positions.
     * @return Normalized surface normal vector (counter-clockwise orientation).
     */
-    Vec3 normal(const std::vector<Vec3>& nodes) const { 
-        return BVH::normalize(BVH::cross(nodes[v[1]] - nodes[v[0]], nodes[v[2]] - nodes[v[0]])); 
+    Vec3 normal(const std::vector<Vec3>& nodes) const {
+        return cross((nodes[v[1]] - nodes[v[0]]), (nodes[v[2]] - nodes[v[0]]));
     }
 
     /**
@@ -59,21 +61,26 @@ struct Triangle {
     * @return Bounding box encompassing all three vertices.
     */
     BBox bounds(const std::vector<Vec3>& nodes) const {
-        BBox box = BBox::make_empty();
-        box.extend(nodes[v[0]]); 
-        box.extend(nodes[v[1]]); 
-        box.extend(nodes[v[2]]);
-        return box;
+        BBox b;
+        for (const auto& p : nodes) b.extend(p);
+        return b;
     }
     /**
-    @brief Get the coordinates of vertices defining this triangle
+    * @brief Get the coordinates of vertices defining this triangle
     * @param[in] nodes - Global node list containing vertex positions
     * @return Vertex array containing the Vec3s defining this triangle
     */
     std::array<Vec3, 3> getVertices(const std::vector<Vec3>& nodes) const{
         return {nodes[v[0]], nodes[v[1]], nodes[v[2]]};
     }
-
+    /**
+    * @brief Compute the area of the triangle
+    * @param[in] nodes - Global node list containing vertex positions
+    * @return Triangle area
+    */
+    double getArea(const std::vector<Vec3>& nodes) const{
+        return normal(nodes).length()/2;
+    }
 };
 /**
 * @brief Formatted stream output operator for a triangle given
@@ -145,7 +152,7 @@ struct ProjectionFrame {
     */
     CDT::V2d<double> to2D(const Vec3& p) const {
         Vec3 rel = p - origin;
-        return {BVH::dot(rel, u), BVH::dot(rel, v)};
+        return {dot(rel, u), dot(rel, v)};
     }
 
     /**

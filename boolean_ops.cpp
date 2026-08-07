@@ -1,13 +1,13 @@
 #include "boolean_ops.hpp"
 #include "bem_interop.hpp"
+#include "math_utils.hpp"
 #include "bvh_collisions.hpp"
-#include "mesh_types.hpp"
-#include "raycast.hpp"
 #include "triangulation.hpp"
+#include "raycast.hpp"
 #include "mesh_clean.hpp"
 #include <cstddef>
-std::vector<bool> getRemovalMask(const MeshData& meshA, const MeshData& meshB, double eps, BoolOp op, bool isMeshA){
-    Bvh bvhB = buildMeshBVH(meshB);
+std::vector<bool> getRemovalMask(const MeshData& meshA, const MeshData& meshB, double eps, BoolOp op, bool isMeshA) {
+    BVH bvhB = buildMeshBVH(meshB, eps);
     const size_t aN = meshA.triangles.size();
     std::vector<bool> removeA(aN, false);
     for (size_t i = 0; i < aN; ++i) {
@@ -89,7 +89,7 @@ Connection nonConformal(const bem::TriangleMesh<3>& A, const bem::TriangleMesh<3
     processSide(ctx.NCBcoords, ctx.CBcoords, ctx.Btris, ctx.meshDataB, ctx.meshDataA, bCoords, tagged_Btris);
     return Connection(aCoords, bCoords, tagged_Atris, tagged_Btris);
 }
-CollisionContext collideAndCut(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B, bool removeTouchingSurfaces){
+CollisionContext collideAndCut(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B, bool removeTouchingSurfaces) {
     MeshData meshA = extractMeshData(A);
     MeshData meshB = extractMeshData(B);
     CollisionContext ctx = detectCollisions(meshA, meshB);
@@ -101,42 +101,42 @@ CollisionContext collideAndCut(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B,
 }
 void meshCombine(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B, bool removeTouchingSurfaces, bool cleanDegenerate) {
     CollisionContext ctx = collideAndCut(A, B, removeTouchingSurfaces);
-    if (cleanDegenerate){
+    if (cleanDegenerate) {
         cleanMesh(ctx.meshDataA, ctx.eps);
         cleanMesh(ctx.meshDataB, ctx.eps);
     }
     rebuildMesh(A, ctx.meshDataA, ctx.eps);
     rebuildMesh(B, ctx.meshDataB, ctx.eps);
 }
-bem::TriangleMesh<3> meshUnion(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B, bool cleanDegenerate){
+bem::TriangleMesh<3> meshUnion(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B, bool cleanDegenerate) {
     CollisionContext ctx = collideAndCut(A, B, false);
     std::vector<bool> removeAInB = getRemovalMask(ctx.meshDataA, ctx.meshDataB, ctx.eps, BoolOp::Union, true);
     std::vector<bool> removeBInA = getRemovalMask(ctx.meshDataB, ctx.meshDataA, ctx.eps, BoolOp::Union, false);
     filterMesh(ctx.meshDataA, removeAInB);
     filterMesh(ctx.meshDataB, removeBInA);
     MeshData combined = combineMeshes({ctx.meshDataA, ctx.meshDataB}, ctx.eps);
-    if (cleanDegenerate){
+    if (cleanDegenerate) {
         cleanMesh(combined, ctx.eps);
     }
     bem::TriangleMesh<3> out;
     rebuildMesh(out, combined, ctx.eps);
     return out;
 }
-bem::TriangleMesh<3> meshIntersect(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B, bool cleanDegenerate){
+bem::TriangleMesh<3> meshIntersect(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B, bool cleanDegenerate) {
     CollisionContext ctx = collideAndCut(A, B, false);
     std::vector<bool> removeANotInB = getRemovalMask(ctx.meshDataA, ctx.meshDataB, ctx.eps, BoolOp::Intersect, true);
     std::vector<bool> removeBNotInA = getRemovalMask(ctx.meshDataB, ctx.meshDataA, ctx.eps, BoolOp::Intersect, false);
     filterMesh(ctx.meshDataA, removeANotInB);
     filterMesh(ctx.meshDataB, removeBNotInA);
     MeshData combined = combineMeshes({ctx.meshDataA, ctx.meshDataB}, ctx.eps);
-    if (cleanDegenerate){
+    if (cleanDegenerate) {
         cleanMesh(combined, ctx.eps);
     }
     bem::TriangleMesh<3> out;
     rebuildMesh(out, combined, ctx.eps);
     return out;
 }
-void meshDifference(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B, bool cleanDegenerate){
+void meshDifference(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B, bool cleanDegenerate) {
     CollisionContext ctx = collideAndCut(A, B, false);
     std::vector<bool> removeAInB = getRemovalMask(ctx.meshDataA, ctx.meshDataB, ctx.eps, BoolOp::Difference, true);
     std::vector<bool> removeBInA = getRemovalMask(ctx.meshDataB, ctx.meshDataA, ctx.eps, BoolOp::Difference, true);
@@ -155,7 +155,7 @@ void meshDifference(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B, bool clean
     invertWinding(aInB);
     MeshData combinedA = combineMeshes({ctx.meshDataA, bInA}, ctx.eps);
     MeshData combinedB = combineMeshes({ctx.meshDataB, aInB}, ctx.eps);
-    if (cleanDegenerate){
+    if (cleanDegenerate) {
         cleanMesh(combinedA, ctx.eps);
         cleanMesh(combinedB, ctx.eps);
     }

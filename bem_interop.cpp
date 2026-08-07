@@ -23,7 +23,7 @@ MeshData extractMeshData(const bem::TriangleMesh<3>& mesh) {
         };
         data.triangles.push_back(tri);
         data.centres.push_back(tri.centre(data.nodes));
-        data.normals.push_back(tri.normal(data.nodes));
+        data.normals.push_back(tri.normal(data.nodes).normalize());
         data.tags.push_back(tags[i]);
     }
     return data;

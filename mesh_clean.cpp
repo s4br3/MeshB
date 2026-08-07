@@ -1,5 +1,5 @@
 #include "mesh_clean.hpp"
-#include "mesh_types.hpp"
+#include "math_utils.hpp"
 #include <numeric>
 
 void filterMesh(MeshData& mesh, const std::vector<bool>& remove) {
@@ -76,7 +76,7 @@ void collapseSlivers(MeshData& mesh, double eps) {
             size_t v0 = t.v[i];
             size_t v1 = t.v[(i + 1) % 3];
             Vec3 diff = mesh.nodes[v1] - mesh.nodes[v0];
-            if (BVH::dot(diff, diff) < eps * eps) {
+            if (dot(diff, diff) < eps * eps) {
                 unionNodes(parent, v0, v1);
             }
         }

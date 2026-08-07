@@ -1,13 +1,8 @@
 #pragma once
+#include "vector.hpp"
+#include "bvh.hpp"
 #include "mesh_types.hpp"
-#include <bvh/v2/bvh.h>
-#include <bvh/v2/node.h>
 #include <optional>
-#include <bvh/v2/default_builder.h>
-
-using Node = BVH::Node<double, 3>;
-using TriVerts = std::array<Vec3, 3>;
-using Bvh  = BVH::Bvh<Node>;
 
 /**
 * @brief Determines if a 3D point lies inside or on the boundary of a triangle element.
@@ -99,14 +94,15 @@ std::vector<Vec3> findIntersectionPointsC(
 * @param[in] bvh2 - Bounding volume hierarchy of mesh 2.
 * @param[in] ctx - Full Collision Context struct containing both meshes and several output buffers for information.
 */
-void findAllCollisions(const Bvh& bvh1, const Bvh& bvh2, CollisionContext& ctx);
+void findAllCollisions(const BVH& bvh1, const BVH& bvh2, CollisionContext& ctx);
 
 /**
 * @brief Constructs a Bounding Volume Hierarchy (BVH) tree for accelerated collision queries.
 * @param[in] mesh - Target surface mesh.
+* @param[in] eps - Tolerance value.
 * @return Built BVH tree.
  */
-Bvh buildMeshBVH(const MeshData& mesh);
+BVH buildMeshBVH(const MeshData& mesh, double eps);
 
 /**
 * @brief High-level detection pipeline computing all geometric collisions between two meshes.

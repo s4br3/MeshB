@@ -1,26 +1,16 @@
 #pragma once
-#include <iostream>
-#include <cmath>
+#include "vector.hpp"
+#include "bvh.hpp"
 #include <cstdint>
-#include <vector>
-#include <array>
 #include <unordered_map>
-#include <bvh/v2/vec.h>
-#include <bvh/v2/bbox.h>
 #include <CDT.h>
-
-namespace BVH = bvh::v2;
-using Vec3 = BVH::Vec<double, 3>;
-using BBox = BVH::BBox<double, 3>;
 
 /**
 * @brief Formatted stream output operator for a 3D vector.
 * @param[in,out] os - Output stream.
-* @param[in] v - Vector to print.
+* @param[in] v - Vec3 to print.
 * @return Reference to the output stream.
 */
-std::ostream& operator<<(std::ostream& os, const Vec3& v);
-
 /**
 * @brief Combines a hash seed with a 64-bit integer value.
 * @param[in] seed - Existing hash value.
@@ -138,7 +128,7 @@ public:
                     if (it != grid.end()) {
                         for (size_t idx : it->second) {
                             Vec3 diff = points[idx] - p;
-                            double sqrDist = BVH::dot(diff, diff);
+                            double sqrDist = dot(diff, diff);
                             if (sqrDist < sqrEps) {
                                 return idx;
                             }
