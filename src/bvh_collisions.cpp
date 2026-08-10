@@ -1,6 +1,47 @@
 #include "bvh_collisions.hpp"
 #include "math_utils.hpp"
 #include <cstddef>
+#include <fstream>
+#include <iostream>
+
+void debugDumpCollisionsToOBJ(const CollisionContext& ctx, const std::string& filename) {
+    std::ofstream out(filename);
+    if (!out.is_open()) {
+        std::cerr << "Failed to open " << filename << " for debugging.\n";
+        return;
+    }
+
+    int vIdx = 1;
+
+    // Helper lambda to write a PolyLine as OBJ lines
+    auto writePolyLine = [&](const PolyLine& poly) {
+        for (const auto& seg : poly) {
+            out << "v " << seg.first[0] << " " << seg.first[1] << " " << seg.first[2] << "\n";
+            out << "v " << seg.second[0] << " " << seg.second[1] << " " << seg.second[2] << "\n";
+            out << "l " << vIdx << " " << (vIdx + 1) << "\n";
+            vIdx += 2;
+        }
+    };
+
+    // Dump Mesh A's cuts
+    for (const auto& [triIdx, poly] : ctx.NCAcoords) {
+        writePolyLine(poly);
+    }
+    for (const auto& [triIdx, polys] : ctx.CAcoords) {
+        for (const auto& poly : polys) writePolyLine(poly);
+    }
+
+    // Dump Mesh B's cuts
+    for (const auto& [triIdx, poly] : ctx.NCBcoords) {
+        writePolyLine(poly);
+    }
+    for (const auto& [triIdx, polys] : ctx.CBcoords) {
+        for (const auto& poly : polys) writePolyLine(poly);
+    }
+
+    out.close();
+    std::cout << "Dumped raw collision lines to " << filename << "\n";
+}
 bool pointInTriangle(const Vec3& p, const TriVerts& vertices, double eps) {
     Vec3 v0 = vertices[2] - vertices[0];
     Vec3 v1 = vertices[1] - vertices[0];
@@ -41,25 +82,26 @@ std::optional<std::pair<Vec3, Vec3>> segmentAOnB(
     const std::array<double, 3>& distances,
     const double eps)
 {
-    int unique = uniqueSignIndex(distances, eps);
-    if (unique < 0) {
-        return std::nullopt;
-    }
-    int a = (unique + 1) % 3;
-    int b = (unique + 2) % 3;
-    auto intersectOnEdge = [&](int iOther) -> Vec3 {
-        double dOther = distances[iOther];
-        double dUnique = distances[unique];
-        double denom = (dOther - dUnique);
-        if (std::abs(denom) <= eps) {
-            return vertices[unique];
+    std::vector<Vec3> pts;
+    pts.reserve(3);
+    for (int i = 0; i < 3; ++i) {
+        int j = (i + 1) % 3;
+        double di = distances[i];
+        double dj = distances[j];
+        if (std::abs(di) <= eps) {
+            pts.push_back(vertices[i]);
+        } 
+        else if ((di > eps && dj < -eps) || (di < -eps && dj > eps)) {
+            double t = di / (di - dj);
+            pts.push_back(vertices[i] + (vertices[j] - vertices[i]) * t);
         }
-        double t = dOther / denom;
-        return vertices[iOther] + (vertices[unique] - vertices[iOther]) * t;
-    };
-    Vec3 A = intersectOnEdge(a);
-    Vec3 B = intersectOnEdge(b);
-    return {{A, B}};
+    }
+    if (pts.size() >= 2) {
+        return std::make_pair(pts[0], pts[1]);
+    } else if (pts.size() == 1) {
+        return std::make_pair(pts[0], pts[0]);
+    }
+    return std::nullopt;
 }
 std::optional<std::pair<Vec3, Vec3>> findIntersectionPointsNC(
     const TriVerts& vertices1, const Vec3& n1, const Vec3& c1,
@@ -81,6 +123,9 @@ std::optional<std::pair<Vec3, Vec3>> findIntersectionPointsNC(
     double line2A = C[largestAxis], line2B = D[largestAxis];
     if (line1A > line1B) { std::swap(line1A, line1B); std::swap(A, B); }
     if (line2A > line2B) { std::swap(line2A, line2B); std::swap(C, D); }
+    if (line1B < line2A - eps || line2B < line1A - eps) {
+        return std::nullopt;
+    }
     Vec3 start = (line1A > line2A + eps) ? A : ((line2A > line1A + eps) ? C : ((A + C) * 0.5));
     Vec3 end   = (line1B < line2B - eps) ? B : ((line2B < line1B - eps) ? D : ((B + D) * 0.5));
     return std::make_pair(start, end);
@@ -93,7 +138,7 @@ std::vector<Vec3> findIntersectionPointsC(
     std::vector<Vec3> poly, out;
     poly.reserve(6);
     out.reserve(6);
-    poly = {vertices1[0], vertices1[1], vertices1[2]};
+    poly.assign(vertices1.begin(), vertices1.end());
     for (int i = 0; i < 3; ++i) {
         if (poly.empty()) break;
         const Vec3& e0 = vertices2[i];
@@ -103,31 +148,23 @@ std::vector<Vec3> findIntersectionPointsC(
         double distC = dot(c2 - e0, inwardNormal);
         int s = sign(distC, eps);
         out.clear();
-        out.reserve(6);
         Vec3 S = poly.back();
         double distS = dot(S - e0, inwardNormal);
         bool SInside = (distS * s) >= -eps;
-        for (size_t j = 0; j < poly.size(); ++j) {
-            const Vec3& E = poly[j];
+        for (const Vec3& E : poly) {
             double distE = dot(E - e0, inwardNormal);
             bool EInside = (distE * s) >= -eps;
-            if (EInside) {
-                if (!SInside) {
-                    double denom = (distS - distE);
-                    if (std::fabs(denom) > eps) {
-                        double t = distS / denom;
-                        out.push_back(S + (E - S) * t);
-                    }
-                }
-                out.push_back(E);
-            } else if (SInside) {
+            if (EInside != SInside) {
                 double denom = (distS - distE);
                 if (std::fabs(denom) > eps) {
                     double t = distS / denom;
                     out.push_back(S + (E - S) * t);
                 }
             }
+            if (EInside) out.push_back(E);
             S = E;
+            distS = distE;
+            SInside = EInside;
         }
         poly.swap(out);
     }
@@ -164,7 +201,7 @@ void findAllCollisions(
                     ctx.Btris[prim2Id].push_back(prim1Id);
                     PolyLine temp;
                     for (size_t i = 0; i < res.size(); i++) {
-                        temp.push_back({res[i], res[(i+1) % res.size()]});                        
+                        temp.push_back({res[i], res[(i + 1) % res.size()]});                        
                     }
                     ctx.CAcoords[prim1Id].push_back(temp);
                     ctx.CBcoords[prim2Id].push_back(temp);
@@ -221,5 +258,6 @@ CollisionContext detectCollisions(const MeshData& meshA, const MeshData& meshB) 
         ctx.eps = computeMeshEpsilon(bvhA.nodes[0].getBbox(), bvhB.nodes[0].getBbox());
         findAllCollisions(bvhA, bvhB, ctx);
     }
+    debugDumpCollisionsToOBJ(ctx, "output.obj");
     return ctx;
 }

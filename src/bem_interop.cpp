@@ -1,4 +1,5 @@
 #include "bem_interop.hpp"
+#include "mesh_types.hpp"
 
 MeshData extractMeshData(const bem::TriangleMesh<3>& mesh) {
     MeshData data;
@@ -12,8 +13,6 @@ MeshData extractMeshData(const bem::TriangleMesh<3>& mesh) {
     }
     size_t count = elems.cols();
     data.triangles.reserve(count);
-    data.centres.reserve(count);
-    data.normals.reserve(count);
     data.tags.reserve(count);
     for (size_t i = 0; i < count; ++i) {
         Triangle tri = {
@@ -22,10 +21,9 @@ MeshData extractMeshData(const bem::TriangleMesh<3>& mesh) {
             (elems(2, i))
         };
         data.triangles.push_back(tri);
-        data.centres.push_back(tri.centre(data.nodes));
-        data.normals.push_back(tri.normal(data.nodes).normalize());
         data.tags.push_back(tags[i]);
     }
+    recomputeMeshData(data);
     return data;
 }
 

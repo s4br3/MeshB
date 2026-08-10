@@ -7,6 +7,6 @@ double computeMeshEpsilon(const BBox& boxA, const BBox& boxB) {
     BBox combined = boxA;
     combined.extend(boxB);
     Vec3 diag = combined.max - combined.min;
-    double max_dim = std::max({diag[0], diag[1], diag[2]});
-    return std::max(max_dim * 1e-7, 1e-12);
+    int axis = getLargestAxis(diag);
+    return std::max(diag[axis] * 1e-7, 1e-12);
 }

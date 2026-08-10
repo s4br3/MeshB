@@ -38,7 +38,7 @@ static bool pointOnSegment(
 * @param[in] eps - Distance tolerance.
 * @return True if segments intersect within valid bounds.
 */
-static void intersect2DAllPoints(
+void intersect2DAllPoints(
     const CDT::V2d<double>& A, const CDT::V2d<double>& B,
     const CDT::V2d<double>& C, const CDT::V2d<double>& D,
     SpatialGrid2D& grid,

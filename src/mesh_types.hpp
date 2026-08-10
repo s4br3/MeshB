@@ -62,7 +62,9 @@ struct Triangle {
     */
     BBox bounds(const std::vector<Vec3>& nodes) const {
         BBox b;
-        for (const auto& p : nodes) b.extend(p);
+        b.extend(nodes[v[0]]);
+        b.extend(nodes[v[1]]);
+        b.extend(nodes[v[2]]);
         return b;
     }
     /**
@@ -72,14 +74,6 @@ struct Triangle {
     */
     std::array<Vec3, 3> getVertices(const std::vector<Vec3>& nodes) const{
         return {nodes[v[0]], nodes[v[1]], nodes[v[2]]};
-    }
-    /**
-    * @brief Compute the area of the triangle
-    * @param[in] nodes - Global node list containing vertex positions
-    * @return Triangle area
-    */
-    double getArea(const std::vector<Vec3>& nodes) const{
-        return normal(nodes).length()/2;
     }
 };
 /**

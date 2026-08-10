@@ -132,18 +132,19 @@ MeshData combineMeshes(const std::vector<MeshData>& meshes, double eps) {
             t.v[0] = remap[t.v[0]];
             t.v[1] = remap[t.v[1]];
             t.v[2] = remap[t.v[2]];
-            combined.triangles.push_back(t);
-            if (i < mesh.centres.size()) combined.centres.push_back(mesh.centres[i]);
-            if (i < mesh.normals.size()) combined.normals.push_back(mesh.normals[i]);
+            if (t.v[0] != t.v[1] && t.v[1] != t.v[2] && t.v[2] != t.v[0]) {
+                const size_t outIdx = combined.triangles.size();
+                combined.triangles.push_back(t);
+                size_t currentTag = (i < mesh.tags.size()) ? mesh.tags[i] : 0;
+                combined.tags.push_back(currentTag + tagOffset);
+            }
         }
         size_t currentMeshMaxTag = 0;
-        for (size_t tag : mesh.tags) {
-            combined.tags.push_back(tag + tagOffset);
-            currentMeshMaxTag = std::max(currentMeshMaxTag, tag);
-        }
-        tagOffset += currentMeshMaxTag + 1;
+        for (size_t t : mesh.tags) currentMeshMaxTag = std::max(currentMeshMaxTag, t + 1);
+        tagOffset += currentMeshMaxTag;
     }
     combined.nodes = grid.getUniquePoints();
     clearUnusedNodes(combined);
+    recomputeMeshData(combined);
     return combined;
 }

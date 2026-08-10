@@ -29,15 +29,21 @@ std::ostream& operator<<(std::ostream& os, const MeshData& mesh) {
 }
 
 void recomputeMeshData(MeshData &mesh) {
-    int maxTag = 0;
-    int tagged = mesh.tags.size();
-    for (int i = 0; i < mesh.triangles.size(); i++) {
-        if (i < tagged) {
-            maxTag = maxTag > mesh.tags[i] ? maxTag : mesh.tags[i];
-        }
-        else{
-            mesh.tags.push_back(maxTag + i - tagged);
-        }
+    mesh.centres.clear();
+    mesh.normals.clear();
+    const size_t nTri = mesh.triangles.size();
+    mesh.centres.reserve(nTri);
+    mesh.normals.reserve(nTri);
+    mesh.tags.reserve(nTri > mesh.tags.size() ? nTri - mesh.tags.size() : 0);
+    size_t maxTag = 0;
+    for (size_t t : mesh.tags) {
+        if (t > maxTag) maxTag = t;
+    }
+    const size_t tagged0 = mesh.tags.size();
+    while (mesh.tags.size() < nTri) {
+        mesh.tags.push_back(maxTag + mesh.tags.size() - tagged0);
+    }
+    for (size_t i = 0; i < nTri; ++i) {
         mesh.centres.push_back(mesh.triangles[i].centre(mesh.nodes));
         mesh.normals.push_back(mesh.triangles[i].normal(mesh.nodes).normalize());
     }

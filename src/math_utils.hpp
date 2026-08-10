@@ -74,6 +74,9 @@ int uniqueSignIndex(const std::array<T,3>& dist, double eps) {
     if (s0 != s1 && s1 == s2) return 0;
     if (s1 != s0 && s0 == s2) return 1;
     if (s2 != s0 && s0 == s1) return 2;
+    if (s0 != 0 && s1 != 0 && s0 != s1) return (s2 == 0) ? 2 : -1;
+    if (s1 != 0 && s2 != 0 && s1 != s2) return (s0 == 0) ? 0 : -1;
+    if (s2 != 0 && s0 != 0 && s2 != s0) return (s1 == 0) ? 1 : -1;
     return -1;
 }
 

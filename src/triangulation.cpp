@@ -36,7 +36,7 @@ static bool pointOnSegment(
     return inRange(P.x, A.x, B.x) && inRange(P.y, A.y, B.y);
 }
 
-static void intersect2DAllPoints(
+void intersect2DAllPoints(
     const CDT::V2d<double>& A, const CDT::V2d<double>& B,
     const CDT::V2d<double>& C, const CDT::V2d<double>& D,
     SpatialGrid2D& grid,
@@ -81,14 +81,12 @@ void buildSubdividedEdges(
     if (segs.empty()) return;
     SpatialGrid2D grid(eps);
     std::vector<std::vector<CDT::VertInd>> pointsOnSegments(segs.size());
-    // 1. Populate initial endpoints for ALL segments
     for (size_t i = 0; i < segs.size(); ++i) {
         CDT::V2d<double> A = initialPts[segs[i].first];
         CDT::V2d<double> B = initialPts[segs[i].second];
         pointsOnSegments[i].push_back(grid.getOrAdd(A));
         pointsOnSegments[i].push_back(grid.getOrAdd(B));
     }
-    // 2. Compute 2D intersections between all segment pairs
     for (size_t i = 0; i + 1 < segs.size(); ++i) {
         CDT::V2d<double> A = initialPts[segs[i].first];
         CDT::V2d<double> B = initialPts[segs[i].second];
@@ -147,10 +145,20 @@ std::vector<Triangle> triangulate(
         size_t idx2 = nodeGrid.getOrAdd(seg.second);
         if (idx1 != idx2) segs.push_back({idx1, idx2});
     }
+    std::unordered_map<std::pair<size_t, size_t>, int> cutEdgeCounts;
     for (const std::pair<Vec3, Vec3>& cut : cuts) {
         size_t idx1 = nodeGrid.getOrAdd(cut.first);
         size_t idx2 = nodeGrid.getOrAdd(cut.second);
-        if (idx1 != idx2) segs.push_back({idx1, idx2});
+        if (idx1 != idx2) {
+            // Sort to ensure the edge A->B and B->A hash to the same key
+            std::pair<size_t, size_t> key = {std::min(idx1, idx2), std::max(idx1, idx2)};
+            cutEdgeCounts[key]++;
+        }
+    }
+    for (const auto& [key, count] : cutEdgeCounts) {
+        if (count % 2 != 0) {
+            segs.push_back(key);
+        }
     }
     for (const Vec3& vec : nodeGrid.getUniquePoints()) initialPts.push_back(frame.to2D(vec));
     std::vector<CDT::V2d<double>> uniquePts;
@@ -229,8 +237,9 @@ MeshData cutMesh(
     bool removeInternalSurfaces)
 {
     SpatialGrid3D nodeGrid(eps);
-    for (const Vec3& node : meshData.nodes) {
-        nodeGrid.getOrAdd(node);
+    std::vector<size_t> oldToNew(meshData.nodes.size());
+    for (size_t i = 0; i <  meshData.nodes.size(); i++) {
+        oldToNew[i] = nodeGrid.getOrAdd(meshData.nodes[i]);
     }
     std::unordered_set<size_t> modifiedIndices;
     for (const auto& [idx, _] : NCcoords) modifiedIndices.insert(idx);
@@ -243,7 +252,11 @@ MeshData cutMesh(
     std::vector<Triangle> extraTriangles;
     for (size_t i = 0; i < meshData.triangles.size(); ++i) {
         if (modifiedIndices.count(i) == 0) {
-            outData.triangles.push_back(meshData.triangles[i]);
+            Triangle t = meshData.triangles[i];
+            t.v[0] = oldToNew[t.v[0]];
+            t.v[1] = oldToNew[t.v[1]];
+            t.v[2] = oldToNew[t.v[2]];
+            outData.triangles.push_back(t);
             outData.tags.push_back(meshData.tags[i]);
             continue;
         }

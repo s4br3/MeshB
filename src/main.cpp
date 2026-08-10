@@ -150,7 +150,9 @@ void testMeshIntersect(bem::TriangleMesh<3>& meshA,
 
 void testMeshCombine(bem::TriangleMesh<3>& meshA,
                       bem::TriangleMesh<3>& meshB,
-                      const std::string& folder)
+                      const std::string& folder,
+                      bool removeTouchingSurfaces,
+                      bool cleanDegenerate)
 {
     auto A = meshA;
     auto B = meshB;
@@ -159,7 +161,7 @@ void testMeshCombine(bem::TriangleMesh<3>& meshA,
         detectCollisions(extractMeshData(A), extractMeshData(B));
 
     // combine1 / combine2
-    meshCombine(A, B, false, false);
+    meshCombine(A, B, removeTouchingSurfaces, cleanDegenerate);
 
     saveMSH(A, joinMsh(folder, "combine1.msh"));
     saveMSH(B, joinMsh(folder, "combine2.msh"));
@@ -180,10 +182,10 @@ int main(int argc, char** argv) {
     std::string mshBPath = inFolder + "/untitled2.msh";
     bem::TriangleMesh<3> meshA = loadMSH(mshAPath);
     bem::TriangleMesh<3> meshB = loadMSH(mshBPath);
-    testMeshDifference(meshA, meshB, outFolder);
-    testMeshUnion(meshA, meshB, outFolder);
-    testMeshIntersect(meshA, meshB, outFolder);
-    testMeshCombine(meshA, meshB, outFolder);
+    testMeshDifference(meshA, meshB, outFolder, false);
+    testMeshUnion(meshA, meshB, outFolder, false);
+    testMeshIntersect(meshA, meshB, outFolder, false);
+    testMeshCombine(meshA, meshB, outFolder, false, false);
     return 0;
 }
 
