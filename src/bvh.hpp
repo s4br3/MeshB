@@ -84,60 +84,66 @@ struct BVH {
             }
             Vec3 diag = centBounds.max - centBounds.min;
             int axis = getLargestAxis(diag);
+            size_t leftCount = 0;
             if (diag[axis] <= eps) {
-                nodes[task.nodeIdx].firstId = task.start;
-                nodes[task.nodeIdx].primCount = task.count;
-                continue;
-            }
-            std::vector<Bin> bins(binCount);
-            for (size_t i = task.start; i < task.start + task.count; ++i) {
-                size_t pId = primIds[i];
-                double pos = centres[pId][axis];
-                double ratio = (pos - centBounds.min[axis]) / diag[axis];
-                int binIdx = static_cast<int>(binCount * ratio);
-                binIdx = std::clamp(binIdx, 0, binCount - 1);
-                bins[binIdx].count++;
-                bins[binIdx].box.extend(bboxes[pId]);
-            }
-            double minCost = inf;
-            int bestSplitBin = -1;
-            for (int split = 0; split < binCount - 1; ++split) {
-                BBox leftBox, rightBox;
-                size_t leftCount = 0, rightCount = 0;
-                for (int i = 0; i <= split; ++i) {
-                    if (bins[i].count > 0) {
-                        leftBox.extend(bins[i].box);
-                        leftCount += bins[i].count;
-                    }
-                }
-                for (int i = split + 1; i < binCount; ++i) {
-                    if (bins[i].count > 0) {
-                        rightBox.extend(bins[i].box);
-                        rightCount += bins[i].count;
-                    }
-                }
-                double cost = leftBox.surfaceArea() * leftCount + rightBox.surfaceArea() * rightCount;
-                if (cost < minCost) {
-                    minCost = cost;
-                    bestSplitBin = split;
-                }
-            }
-            auto splitIt = std::partition(
-                primIds.begin() + task.start, 
-                primIds.begin() + task.start + task.count,
-                [&](size_t pId) {
+                leftCount = task.count / 2;
+            } else {
+                std::vector<Bin> bins(binCount);
+                for (size_t i = task.start; i < task.start + task.count; ++i) {
+                    size_t pId = primIds[i];
                     double pos = centres[pId][axis];
                     double ratio = (pos - centBounds.min[axis]) / diag[axis];
                     int binIdx = static_cast<int>(binCount * ratio);
                     binIdx = std::clamp(binIdx, 0, binCount - 1);
-                    return binIdx <= bestSplitBin;
+                    bins[binIdx].count++;
+                    bins[binIdx].box.extend(bboxes[pId]);
                 }
-            );
-            size_t leftCount = std::distance(primIds.begin() + task.start, splitIt);
-            if (leftCount == 0 || leftCount == task.count) {
-                nodes[task.nodeIdx].firstId = task.start;
-                nodes[task.nodeIdx].primCount = task.count;
-                continue;
+                double minCost = inf;
+                int bestSplitBin = -1;
+                for (int split = 0; split < binCount - 1; ++split) {
+                    BBox leftBox, rightBox;
+                    size_t lCount = 0, rCount = 0;
+                    for (int i = 0; i <= split; ++i) {
+                        if (bins[i].count > 0) {
+                            leftBox.extend(bins[i].box);
+                            lCount += bins[i].count;
+                        }
+                    }
+                    for (int i = split + 1; i < binCount; ++i) {
+                        if (bins[i].count > 0) {
+                            rightBox.extend(bins[i].box);
+                            rCount += bins[i].count;
+                        }
+                    }
+                    double cost = leftBox.surfaceArea() * lCount + rightBox.surfaceArea() * rCount;
+                    if (cost < minCost) {
+                        minCost = cost;
+                        bestSplitBin = split;
+                    }
+                }
+                auto splitIt = std::partition(
+                    primIds.begin() + task.start, 
+                    primIds.begin() + task.start + task.count,
+                    [&](size_t pId) {
+                        double pos = centres[pId][axis];
+                        double ratio = (pos - centBounds.min[axis]) / diag[axis];
+                        int binIdx = static_cast<int>(binCount * ratio);
+                        binIdx = std::clamp(binIdx, 0, binCount - 1);
+                        return binIdx <= bestSplitBin;
+                    }
+                );
+                leftCount = std::distance(primIds.begin() + task.start, splitIt);
+                if (leftCount == 0 || leftCount == task.count) {
+                    leftCount = task.count / 2;
+                    std::nth_element(
+                            primIds.begin() + task.start,
+                            primIds.begin() + task.start + leftCount,
+                            primIds.begin() + task.start + task.count,
+                            [&](size_t a, size_t b) {
+                                return centres[a][axis] < centres[b][axis];
+                            }
+                        );
+                }
             }
             size_t leftChildIdx = nodes.size();
             nodes.emplace_back();

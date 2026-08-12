@@ -178,7 +178,7 @@ int main(int argc, char** argv) {
     }
     std::string inFolder  = argv[1];
     std::string outFolder = argv[2];
-    std::string mshAPath = inFolder + "/untitled.msh";
+    std::string mshAPath = inFolder + "/untitled1.msh";
     std::string mshBPath = inFolder + "/untitled2.msh";
     bem::TriangleMesh<3> meshA = loadMSH(mshAPath);
     bem::TriangleMesh<3> meshB = loadMSH(mshBPath);

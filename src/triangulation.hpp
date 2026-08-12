@@ -101,4 +101,4 @@ std::vector<Triangle> cutTriangles(
 MeshData cutMesh(
     const MeshData& meshData,
     const std::unordered_map<size_t, PolyLine>& NCcoords, const std::unordered_map<size_t, std::vector<PolyLine>>& Ccoords,
-    double eps, bool removeInternalSurfaces = false);
+    double eps, bool removeInternalSurfaces = false, bool meshA = true);

@@ -93,8 +93,8 @@ CollisionContext collideAndCut(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B,
     MeshData meshA = extractMeshData(A);
     MeshData meshB = extractMeshData(B);
     CollisionContext ctx = detectCollisions(meshA, meshB);
-    MeshData newMeshA = cutMesh(ctx.meshDataA, ctx.NCAcoords, ctx.CAcoords, ctx.eps, removeTouchingSurfaces);
-    MeshData newMeshB = cutMesh(ctx.meshDataB, ctx.NCBcoords, ctx.CBcoords, ctx.eps, removeTouchingSurfaces);
+    MeshData newMeshA = cutMesh(ctx.meshDataA, ctx.NCAcoords, ctx.CAcoords, ctx.eps, removeTouchingSurfaces, true);
+    MeshData newMeshB = cutMesh(ctx.meshDataB, ctx.NCBcoords, ctx.CBcoords, ctx.eps, removeTouchingSurfaces, false);
     ctx.meshDataA = newMeshA;
     ctx.meshDataB = newMeshB;
     return ctx;

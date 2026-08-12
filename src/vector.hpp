@@ -5,8 +5,11 @@
 #include <cmath>
 struct Vec3 {
     double x = 0.0, y = 0.0, z = 0.0;
+    double length2() const{
+        return x * x + y * y + z * z;
+    }
     double length() const {
-        return std::sqrt(x * x + y * y + z * z);
+        return std::sqrt(length2());
     }
     Vec3 normalize() const {
         return *this/length();
@@ -75,8 +78,11 @@ struct Vec3 {
 };
 struct Vec2 {
     double x = 0.0, y = 0.0;
+    double length2() const{
+        return x * x + y * y;
+    }
     double length() const {
-        return std::sqrt(x * x + y * y);
+        return std::sqrt(length2());
     }
     Vec2 normalize() const {
         return *this/length();

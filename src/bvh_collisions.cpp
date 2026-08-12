@@ -1,47 +1,6 @@
 #include "bvh_collisions.hpp"
 #include "math_utils.hpp"
 #include <cstddef>
-#include <fstream>
-#include <iostream>
-
-void debugDumpCollisionsToOBJ(const CollisionContext& ctx, const std::string& filename) {
-    std::ofstream out(filename);
-    if (!out.is_open()) {
-        std::cerr << "Failed to open " << filename << " for debugging.\n";
-        return;
-    }
-
-    int vIdx = 1;
-
-    // Helper lambda to write a PolyLine as OBJ lines
-    auto writePolyLine = [&](const PolyLine& poly) {
-        for (const auto& seg : poly) {
-            out << "v " << seg.first[0] << " " << seg.first[1] << " " << seg.first[2] << "\n";
-            out << "v " << seg.second[0] << " " << seg.second[1] << " " << seg.second[2] << "\n";
-            out << "l " << vIdx << " " << (vIdx + 1) << "\n";
-            vIdx += 2;
-        }
-    };
-
-    // Dump Mesh A's cuts
-    for (const auto& [triIdx, poly] : ctx.NCAcoords) {
-        writePolyLine(poly);
-    }
-    for (const auto& [triIdx, polys] : ctx.CAcoords) {
-        for (const auto& poly : polys) writePolyLine(poly);
-    }
-
-    // Dump Mesh B's cuts
-    for (const auto& [triIdx, poly] : ctx.NCBcoords) {
-        writePolyLine(poly);
-    }
-    for (const auto& [triIdx, polys] : ctx.CBcoords) {
-        for (const auto& poly : polys) writePolyLine(poly);
-    }
-
-    out.close();
-    std::cout << "Dumped raw collision lines to " << filename << "\n";
-}
 bool pointInTriangle(const Vec3& p, const TriVerts& vertices, double eps) {
     Vec3 v0 = vertices[2] - vertices[0];
     Vec3 v1 = vertices[1] - vertices[0];
@@ -168,7 +127,23 @@ std::vector<Vec3> findIntersectionPointsC(
         }
         poly.swap(out);
     }
-    return poly;
+    std::vector<Vec3> uniquePoly;
+    uniquePoly.reserve(poly.size());
+    const double sqrEps = eps * eps;
+    for (const auto& pt : poly) {
+        bool isDuplicate = false;
+        for (const auto& existing : uniquePoly) {
+            Vec3 diff = pt - existing;
+            if (dot(diff, diff) <= sqrEps) {
+                isDuplicate = true;
+                break;
+            }
+        }
+        if (!isDuplicate) {
+            uniquePoly.push_back(pt);
+        }
+    }
+    return uniquePoly;
 }
 void findAllCollisions(
     const BVH& bvh1, const BVH& bvh2,
@@ -186,39 +161,43 @@ void findAllCollisions(
             continue;
         }
         if (node1.isLeaf() && node2.isLeaf()) {
-            size_t prim1Id = bvh1.primIds[node1.firstId];
-            size_t prim2Id = bvh2.primIds[node2.firstId];
-            const TriVerts& t1 = ctx.meshDataA.triangles[prim1Id].getVertices(ctx.meshDataA.nodes);
-            const TriVerts& t2 = ctx.meshDataB.triangles[prim2Id].getVertices(ctx.meshDataB.nodes);
-            const Vec3& n1 = ctx.meshDataA.normals[prim1Id];
-            const Vec3& n2 = ctx.meshDataB.normals[prim2Id];
-            const Vec3& c1 = ctx.meshDataA.centres[prim1Id];
-            const Vec3& c2 = ctx.meshDataB.centres[prim2Id];            
-            if (coplanar(n1, c1, n2, c2, ctx.eps)) {
-                std::vector<Vec3> res = findIntersectionPointsC(t1, t2, n2, c2, ctx.eps);
-                if (res.size() > 1) {
-                    ctx.Atris[prim1Id].push_back(prim2Id);
-                    ctx.Btris[prim2Id].push_back(prim1Id);
-                    PolyLine temp;
-                    for (size_t i = 0; i < res.size(); i++) {
-                        temp.push_back({res[i], res[(i + 1) % res.size()]});                        
-                    }
-                    ctx.CAcoords[prim1Id].push_back(temp);
-                    ctx.CBcoords[prim2Id].push_back(temp);
-                }
-            } else {
-                if (std::optional<std::pair<Vec3, Vec3>> optResult = findIntersectionPointsNC(t1, n1, c1, t2, n2, c2, ctx.eps)) {
-                    auto [startPt, endPt] = *optResult;
-                    ctx.Atris[prim1Id].push_back(prim2Id);
-                    ctx.Btris[prim2Id].push_back(prim1Id);
-                    Vec3 diff = startPt - endPt;
-                    if (dot(diff, diff) > ctx.eps * ctx.eps) {
-                    ctx.NCAcoords[prim1Id].push_back({startPt, endPt});
-                    ctx.NCBcoords[prim2Id].push_back({startPt, endPt});
-                }
-                    else {
-                        ctx.NCAcoords[prim1Id].push_back({startPt, startPt});
-                        ctx.NCBcoords[prim2Id].push_back({startPt, startPt});
+            for (size_t i = 0; i < node1.primCount; ++i) {
+                size_t prim1Id = bvh1.primIds[node1.firstId + i];
+                for (size_t j = 0; j < node2.primCount; ++j) {
+                    size_t prim2Id = bvh2.primIds[node2.firstId + j];
+                    const TriVerts& t1 = ctx.meshDataA.triangles[prim1Id].getVertices(ctx.meshDataA.nodes);
+                    const TriVerts& t2 = ctx.meshDataB.triangles[prim2Id].getVertices(ctx.meshDataB.nodes);
+                    const Vec3& n1 = ctx.meshDataA.normals[prim1Id];
+                    const Vec3& n2 = ctx.meshDataB.normals[prim2Id];
+                    const Vec3& c1 = ctx.meshDataA.centres[prim1Id];
+                    const Vec3& c2 = ctx.meshDataB.centres[prim2Id];
+                    if (coplanar(n1, c1, n2, c2, ctx.eps)) {
+                        std::vector<Vec3> res = findIntersectionPointsC(t1, t2, n2, c2, ctx.eps);
+                        if (res.size() > 1) {
+                            ctx.Atris[prim1Id].push_back(prim2Id);
+                            ctx.Btris[prim2Id].push_back(prim1Id);
+                            PolyLine temp;
+                            for (size_t k = 0; k < res.size(); k++) {
+                                temp.push_back({res[k], res[(k + 1) % res.size()]});                        
+                            }
+                            ctx.CAcoords[prim1Id].push_back(temp);
+                            ctx.CBcoords[prim2Id].push_back(temp);
+                        }
+                    } else {
+                        if (std::optional<std::pair<Vec3, Vec3>> optResult = findIntersectionPointsNC(t1, n1, c1, t2, n2, c2, ctx.eps)) {
+                            auto [startPt, endPt] = *optResult;
+                            ctx.Atris[prim1Id].push_back(prim2Id);
+                            ctx.Btris[prim2Id].push_back(prim1Id);
+                            Vec3 diff = startPt - endPt;
+                            if (dot(diff, diff) > ctx.eps * ctx.eps) {
+                                ctx.NCAcoords[prim1Id].push_back({startPt, endPt});
+                                ctx.NCBcoords[prim2Id].push_back({startPt, endPt});
+                            }
+                            else {
+                                ctx.NCAcoords[prim1Id].push_back({startPt, startPt});
+                                ctx.NCBcoords[prim2Id].push_back({startPt, startPt});
+                            }
+                        }
                     }
                 }
             }
@@ -253,11 +232,9 @@ CollisionContext detectCollisions(const MeshData& meshA, const MeshData& meshB) 
     CollisionContext ctx = {meshA, meshB};
     BVH bvhA = buildMeshBVH(ctx.meshDataA, ctx.eps);
     BVH bvhB = buildMeshBVH(ctx.meshDataB, ctx.eps);
-    ctx.eps = 1e-7; 
     if (!bvhA.nodes.empty() && !bvhB.nodes.empty()) {
         ctx.eps = computeMeshEpsilon(bvhA.nodes[0].getBbox(), bvhB.nodes[0].getBbox());
         findAllCollisions(bvhA, bvhB, ctx);
     }
-    debugDumpCollisionsToOBJ(ctx, "output.obj");
     return ctx;
 }

@@ -21,12 +21,14 @@ Vec3 cross(const Vec3& lhs, const Vec3& rhs) {
 double cross2D(const Vec2& lhs, const Vec2& rhs) {
     return lhs.x * rhs.y - lhs.y * rhs.x;
 }
-int getLargestAxis(const Vec3& v){
-    int axis = 0;
-    if (v.y > v.x) axis = 1;
-    if (v.z > v[axis]) axis = 2;
-    return axis;
+int getLargestAxis(const Vec3& v) {
+    double ax = std::abs(v.x);
+    double ay = std::abs(v.y);
+    double az = std::abs(v.z);
+    if (ax >= ay && ax >= az) return 0;
+    if (ay >= az) return 1;
+    return 2;
 }
 int getLargestAxis(const Vec2& v){
-    return v.y > v.x;
+    return std::abs(v.y) > std::abs(v.x);
 }
