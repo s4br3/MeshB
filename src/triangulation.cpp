@@ -1,9 +1,38 @@
 #include "triangulation.hpp"
 #include "CDTUtils.h"
 #include "math_utils.hpp"
+#include "mesh_clean.hpp"
 #include "mesh_types.hpp"
-#include <set>
+#include <fstream>
+#include <iostream>
+#include <unordered_map>
 
+
+void debugDumpToObj(const std::vector<Triangle>& tris, 
+                    const std::vector<Vec3>& nodes, 
+                    const std::string& filename, 
+                    double eps) 
+{
+    std::ofstream out(filename);
+    if (!out.is_open()) return;
+    SpatialGrid3D debugGrid(eps);
+    std::vector<size_t> objIndices;
+    objIndices.reserve(tris.size() * 3);
+    for (const Triangle& tri : tris) {
+        for (int j = 0; j < 3; ++j) {
+            objIndices.push_back(debugGrid.getOrAdd(nodes[tri.v[j]]));
+        }
+    }
+    const std::vector<Vec3>& uniquePts = debugGrid.getUniquePoints();
+    for (const Vec3& p : uniquePts) {
+        out << "v " << p.x << " " << p.y << " " << p.z << "\n";
+    }
+    for (size_t i = 0; i < tris.size(); ++i) {
+        out << "f " << (objIndices[i * 3 + 0] + 1) << " "
+                    << (objIndices[i * 3 + 1] + 1) << " "
+                    << (objIndices[i * 3 + 2] + 1) << "\n";
+    }
+}
 ProjectionFrame computeSharedFrame(const Vec3& normal, const Vec3& origin) {
     ProjectionFrame frame;
     frame.origin = origin;
@@ -69,7 +98,7 @@ void intersect2DAllPoints(
                 addIdUnique(grid.getOrAdd(D));
             }
             else {
-                addIdUnique(grid.getOrAdd({A.x + t * x12, A.y + t * y12}));
+                addIdUnique(grid.getOrAdd( {A.x + t * x12, A.y + t * y12} ));
             }
         }
         return;
@@ -127,7 +156,7 @@ void buildSubdividedEdges(
         for (CDT::VertInd id : ids) {
             const CDT::V2d<double>& P = outUniquePts[id];
             double t = ((P.x - A.x) * vx + (P.y - A.y) * vy) / lenSq;
-            parametrized.push_back({t, id});
+            parametrized.push_back( {t, id} );
         }
         std::sort(parametrized.begin(), parametrized.end());
         std::vector<CDT::VertInd> cleanIds;
@@ -147,7 +176,7 @@ void buildSubdividedEdges(
 std::vector<Triangle> triangulate(
     const PolyLine& polygonSegments, const PolyLine& cuts,
     const ProjectionFrame& frame, SpatialGrid3D& nodeGrid,
-    bool coplanar, const double eps)
+    const double eps)
 {
     if (polygonSegments.empty() && cuts.empty()) return {};
     std::vector<CDT::V2d<double>> initialPts;
@@ -155,15 +184,14 @@ std::vector<Triangle> triangulate(
     for (const std::pair<Vec3, Vec3>& seg : polygonSegments) {
         size_t idx1 = nodeGrid.getOrAdd(seg.first);
         size_t idx2 = nodeGrid.getOrAdd(seg.second);
-        if (idx1 != idx2) segs.push_back({idx1, idx2});
+        if (idx1 != idx2) segs.push_back( {idx1, idx2} );
     }
     std::unordered_set<std::pair<size_t, size_t>> cutEdge;
     for (const std::pair<Vec3, Vec3>& cut : cuts) {
         size_t idx1 = nodeGrid.getOrAdd(cut.first);
         size_t idx2 = nodeGrid.getOrAdd(cut.second);
         if (idx1 != idx2) {
-            std::pair<size_t, size_t> key = {std::min(idx1, idx2), std::max(idx1, idx2)};
-            cutEdge.insert(key);
+            cutEdge.insert(makeEdgeKey(idx1, idx2));
         }
     }
     for (const std::pair<size_t, size_t>& key : cutEdge) {
@@ -180,21 +208,15 @@ std::vector<Triangle> triangulate(
         CDT::VertInd v1 = edge.v1();
         CDT::VertInd v2 = edge.v2();
         if (v1 == v2) continue;
-        std::pair<CDT::VertInd, CDT::VertInd> key = std::make_pair(std::min(v1, v2), std::max(v1, v2));
-        if (cleanEdges.insert(key).second) {
-            deduplicatedCDTEdges.push_back(CDT::Edge{v1, v2});
+        if (cleanEdges.insert(makeEdgeKey(v1, v2)).second) {
+            deduplicatedCDTEdges.push_back(CDT::Edge {v1, v2} );
         }
     }
     CDTEdges = std::move(deduplicatedCDTEdges);
     CDT_Triangulation cdt;
     cdt.insertVertices(uniquePts);
     cdt.insertEdges(CDTEdges);
-    cdt.eraseOuterTrianglesAndHoles();
-    /*if (coplanar) {
-        cdt.eraseOuterTrianglesAndHoles();
-    } else {
-        cdt.eraseOuterTriangles();
-    }*/
+    cdt.eraseOuterTriangles();
     std::vector<size_t> localToGlobal(cdt.vertices.size());
     for (size_t i = 0; i < cdt.vertices.size(); ++i) {
         localToGlobal[i] = nodeGrid.getOrAdd(frame.to3D(cdt.vertices[i]));
@@ -215,7 +237,7 @@ std::vector<Triangle> triangulate(
 std::vector<Triangle> cutTriangles(
     const std::vector<Triangle>& tris, const std::vector<Vec3>& nodes, const PolyLine& cuts,
     const ProjectionFrame& frame, SpatialGrid3D& nodeGrid,
-    bool coplanar, const double eps)
+    const double eps)
 {
     std::unordered_map<std::pair<size_t, size_t>, size_t> edgeCounts;
     std::unordered_map<std::pair<size_t, size_t>, std::pair<Vec3, Vec3>> edgeGeom;
@@ -223,7 +245,7 @@ std::vector<Triangle> cutTriangles(
         for (int i = 0; i < 3; ++i) {
             size_t u = tri.v[i];
             size_t v = tri.v[(i + 1) % 3];
-            std::pair<size_t, size_t> key = {std::min(u, v), std::max(u, v)};
+            std::pair<size_t, size_t> key = makeEdgeKey(u, v);
             edgeCounts[key]++;
             if (edgeCounts[key] == 1) {
                 edgeGeom[key] = {nodes[u], nodes[v]};
@@ -235,15 +257,111 @@ std::vector<Triangle> cutTriangles(
         segs.push_back(edgeGeom[key]);
     }
 
-    return triangulate(segs, cuts, frame, nodeGrid, coplanar, eps);
+    return triangulate(segs, cuts, frame, nodeGrid, eps);
+}
+void dfsEdges(
+    size_t curr,
+    const std::unordered_map<size_t, std::vector<size_t>>& adjacencies,
+    std::set<EdgeKey>& visitedEdges,
+    std::vector<size_t>& pathStack,
+    std::vector<std::vector<size_t>>& allCycles)
+{
+    auto it = adjacencies.find(curr);
+    if (it == adjacencies.end()) return;
+    for (size_t neighbour : it->second) {
+        EdgeKey key = makeEdgeKey(curr, neighbour);
+        if (visitedEdges.count(key)) continue;
+        visitedEdges.insert(key);
+        auto pathIt = std::find(pathStack.begin(), pathStack.end(), neighbour);
+        if (pathIt != pathStack.end()) {
+            std::vector<size_t> cycle(pathIt, pathStack.end());
+            allCycles.push_back(cycle);
+        } else {
+            pathStack.push_back(neighbour);
+            dfsEdges(neighbour, adjacencies, visitedEdges, pathStack, allCycles);
+            pathStack.pop_back();
+        }
+    }
+}
+std::vector<PolyLine> findCycles(const PolyLine& edges, SpatialGrid3D& nodeGrid) {
+    if (edges.empty()) return {};
+    std::unordered_map<size_t, std::vector<size_t>> adjacencyMap;
+    for (const std::pair<Vec3, Vec3>& seg : edges) {
+        size_t u = nodeGrid.getOrAdd(seg.first);
+        size_t v = nodeGrid.getOrAdd(seg.second);
+        if (u == v) continue;
+        adjacencyMap[u].push_back(v);
+        adjacencyMap[v].push_back(u);
+    }
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        std::vector<size_t> toRemove;
+        for (const auto& [node, neighbours] : adjacencyMap) {
+            if (neighbours.size() <= 1) {
+                toRemove.push_back(node);
+            }
+        }
+        for (size_t node : toRemove) {
+            auto itNode = adjacencyMap.find(node);
+            if (itNode == adjacencyMap.end()) continue;
+            for (size_t nb : itNode->second) {
+                auto itNb = adjacencyMap.find(nb);
+                if (itNb != adjacencyMap.end()) {
+                    auto& vec = itNb->second;
+                    vec.erase(std::remove(vec.begin(), vec.end(), node), vec.end());
+                }
+            }
+            adjacencyMap.erase(itNode);
+            changed = true;
+        }
+    }
+    if (adjacencyMap.empty()) return {};
+    std::set<EdgeKey> visitedEdges;
+    std::vector<std::vector<size_t>> allCycles;
+    for (const auto& [startNode, _] : adjacencyMap) {
+        std::vector<size_t> pathStack = {startNode};
+        dfsEdges(startNode, adjacencyMap, visitedEdges, pathStack, allCycles);
+    }
+    std::vector<PolyLine> loops;
+    const auto& uniquePoints = nodeGrid.getUniquePoints();
+    for (const auto& cycleIndices : allCycles) {
+        if (cycleIndices.size() < 3) continue;
+        PolyLine loopPoly;
+        for (size_t i = 0; i < cycleIndices.size(); ++i) {
+            size_t u = cycleIndices[i];
+            size_t v = cycleIndices[(i + 1) % cycleIndices.size()];
+            loopPoly.push_back({uniquePoints[u], uniquePoints[v]});
+        }
+        loops.push_back(loopPoly);
+    }
+    return loops;
+}
+bool isCentroidInHole(
+    const Vec3 centre,
+    const std::vector<PolyLine>& allHoles, 
+    const ProjectionFrame& frame) 
+{
+    CDT::V2d<double> pt = frame.to2D(centre);
+    bool inside = false;
+    for (const PolyLine& hole : allHoles) {
+        for (const auto& edge : hole) {
+            CDT::V2d<double> v1 = frame.to2D(edge.first);
+            CDT::V2d<double> v2 = frame.to2D(edge.second);
+            if (((v1.y > pt.y) != (v2.y > pt.y)) &&
+                (pt.x < (v2.x - v1.x) * (pt.y - v1.y) / (v2.y - v1.y) + v1.x)) 
+            {
+                inside = !inside;
+            }
+        }
+    }
+    return inside;
 }
 MeshData cutMesh(
     const MeshData& meshData,
-    const std::unordered_map<size_t, PolyLine>& NCcoords,
-    const std::unordered_map<size_t, std::vector<PolyLine>>& Ccoords,
-    const double eps,
-    bool removeInternalSurfaces,
-    bool meshA)
+    const std::unordered_map<size_t, PolyLine>& NCCuts,
+    const std::unordered_map<size_t, std::vector<PolyLine>>& CCuts,
+    const double eps, bool removeTouchingSurfaces, bool meshA)
 {
     SpatialGrid3D nodeGrid(eps);
     std::vector<size_t> oldToNew(meshData.nodes.size());
@@ -251,60 +369,78 @@ MeshData cutMesh(
         oldToNew[i] = nodeGrid.getOrAdd(meshData.nodes[i]);
     }
     std::unordered_set<size_t> modifiedIndices;
-    for (const auto& [idx, _] : NCcoords) modifiedIndices.insert(idx);
-    for (const auto& [idx, _] : Ccoords) modifiedIndices.insert(idx);
+    for (const auto& [idx, _] : NCCuts) modifiedIndices.insert(idx);
+    for (const auto& [idx, _] : CCuts) modifiedIndices.insert(idx);
     size_t tagOffset = 0;
     for (size_t tag : meshData.tags) {
         tagOffset = std::max(tagOffset, tag + 1);
     }
     MeshData outData;
     std::vector<Triangle> extraTriangles;
-    for (size_t i = 0; i < meshData.triangles.size(); ++i) {
-        if (modifiedIndices.count(i) == 0) {
-            Triangle t = meshData.triangles[i];
+    for (size_t i = 0; i < meshData.triangles.size(); i++) {
+        Triangle t = meshData.triangles[i];
             t.v[0] = oldToNew[t.v[0]];
             t.v[1] = oldToNew[t.v[1]];
             t.v[2] = oldToNew[t.v[2]];
+        if (modifiedIndices.count(i) == 0) {
             outData.triangles.push_back(t);
             outData.tags.push_back(meshData.tags[i]);
             continue;
         }
-        std::vector<Triangle> subTris{meshData.triangles[i]};
+        std::vector<Triangle> subTris = {t};
         ProjectionFrame frame = computeSharedFrame(meshData.normals[i], meshData.centres[i]);
-        PolyLine CCuts;
-        auto itC = Ccoords.find(i);
-        if (itC != Ccoords.end()) {
-            PolyLine temp = flattenVector(itC->second);
-            CCuts.insert(CCuts.end(), temp.begin(), temp.end());
+        auto itC = CCuts.find(i);
+        auto itNC = NCCuts.find(i);
+        std::vector<PolyLine> coplanarCuts;
+        PolyLine noncoplanarCuts;
+        if (itC != CCuts.end()){
+            coplanarCuts = itC->second;
         }
-        auto itNC = NCcoords.find(i);
-        PolyLine NCCuts;
-        if (itNC != NCcoords.end()) {
-            NCCuts.insert(NCCuts.end(), itNC->second.begin(), itNC->second.end());
+        if (itNC != NCCuts.end()){
+            noncoplanarCuts = itNC->second;
         }
-        PolyLine cuts;
-        cuts.insert(cuts.end(), CCuts.begin(), CCuts.end());
-        cuts.insert(cuts.end(), NCCuts.begin(), NCCuts.end());
-        subTris = cutTriangles(subTris, nodeGrid.getUniquePoints(), cuts, frame, nodeGrid, true, eps);
-        if (!subTris.empty()) {
+        std::vector<Triangle> holeTriangles;
+        std::vector<Triangle> modifiedTris;
+        std::vector<PolyLine> holesNC = findCycles(noncoplanarCuts, nodeGrid);
+        for (const PolyLine& hole : coplanarCuts) {
+            if (hole.size() == 3) {
+                Triangle holeTri {nodeGrid.getOrAdd(hole[0].first), nodeGrid.getOrAdd(hole[1].first), nodeGrid.getOrAdd(hole[2].first)};
+                holeTriangles.push_back(holeTri);
+                modifiedTris.push_back(holeTri);
+            }
+            else {
+            std::vector<Triangle> currHoleTris = triangulate(hole, {}, frame, nodeGrid, eps);
+            holeTriangles.insert(holeTriangles.end(), currHoleTris.begin(), currHoleTris.end());
+            modifiedTris.insert(modifiedTris.end(), currHoleTris.begin(), currHoleTris.end());
+            }
+        }
+        subTris.insert(subTris.end(), holeTriangles.begin(), holeTriangles.end());
+        subTris = cutTriangles(subTris, nodeGrid.getUniquePoints(), noncoplanarCuts, frame, nodeGrid, eps);
+        if(removeTouchingSurfaces){
+            std::vector<PolyLine> holes = coplanarCuts;
+            holes.insert(holes.end(),holesNC.begin(), holesNC.end());
+            std::vector<Triangle> goodTris;
+            for (const Triangle& tri : subTris){
+                if (!isCentroidInHole(tri.centre(nodeGrid.getUniquePoints()), holes, frame)){
+                    goodTris.push_back(tri);
+                }
+            }
+            subTris = std::move(goodTris);
+        }
+        if(!subTris.empty()){
             outData.triangles.push_back(subTris[0]);
             outData.tags.push_back(meshData.tags[i]);
             extraTriangles.insert(extraTriangles.end(), subTris.begin() + 1, subTris.end());
+            std::string s = meshA?"A":"B";
+            std::string filename = "tri" + s + std::to_string(meshData.tags[i]) + ".obj";
+            debugDumpToObj(modifiedTris, nodeGrid.getUniquePoints(), filename, eps);
         }
-        if (itC != Ccoords.end() && !removeInternalSurfaces) {
-            for (const PolyLine& hole : itC->second) {
-                std::vector<Triangle> holeTris = triangulate(hole, {}, frame, nodeGrid, false, eps);
-                extraTriangles.insert(extraTriangles.end(), std::make_move_iterator(holeTris.begin()), std::make_move_iterator(holeTris.end()));
-            }
-        }
-        std::string s = meshA?"A":"B";
-        std::string filename = "tri" + s + std::to_string(meshData.tags[i]) + ".obj";
     }
     for (size_t i = 0; i < extraTriangles.size(); ++i) {
         outData.triangles.push_back(std::move(extraTriangles[i]));
         outData.tags.push_back(tagOffset + i);
     }
-    outData.nodes = nodeGrid.getUniquePoints();
-    recomputeMeshData(outData);
+    outData.nodes = std::move(nodeGrid.getUniquePoints());
+    cleanMesh(outData, eps);
     return outData;
 }

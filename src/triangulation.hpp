@@ -1,13 +1,19 @@
 #pragma once
 #include "mesh_types.hpp"
 #include "math_utils.hpp"
+#include <set>
 
-
-/**
-* @brief Alias for Constrained Delaunay Triangulation structure.
-*/
+using EdgeKey = std::pair<size_t, size_t>;
 using CDT_Triangulation = CDT::Triangulation<double>;
-
+/**
+* @brief Standard key of any edge, with smaller index first and larger index second.
+* @param [in] u - Index of one endpoint of the edge.
+* @param [in] v - Index of the other endpoint of the edge.
+* @return The pair of indices in ascending order.
+*/
+inline EdgeKey makeEdgeKey(size_t u, size_t v) {
+    return {std::min(u, v), std::max(u, v)};
+}
 /**
 * @brief Constructs an orthonormal 2D projection frame for a planar surface.
 * @param[in] normal - Plane normal vector.
@@ -65,13 +71,12 @@ void buildSubdividedEdges(
 * @param[in] frame - Projection frame defining planar mapping.
 * @param[in] eps - Spatial tolerance threshold.
 * @param[in,out] nodeGrid - Spatial 3D lookup grid for vertex merging.
-* @param[in] coplanar - Flag indicating if triangulation applies to coplanar surface patches.
 * @return Array of newly retriangulated 3D Triangle elements.
 */
 std::vector<Triangle> triangulate(
     const PolyLine& polygonSegments, const PolyLine& cuts,
     const ProjectionFrame& frame, SpatialGrid3D& nodeGrid,
-    bool coplanar, double eps);
+    double eps);
 
 /**
 * @brief Subdivides and remeshes a list of triangles along intersection polylines.
@@ -80,25 +85,47 @@ std::vector<Triangle> triangulate(
 * @param[in] cuts - Polyline cut paths crossing elements.
 * @param[in] frame - Planar projection frame.
 * @param[in,out] nodeGrid - Spatial node matching structure.
-* @param[in] coplanar - Coplanar surface flag.
 * @param[in] eps - Tolerance threshold.
 * @return Subdivided set of output triangles.
 */
 std::vector<Triangle> cutTriangles(
     const std::vector<Triangle>& tris, const std::vector<Vec3>& nodes, const PolyLine& cuts,
     const ProjectionFrame& frame, SpatialGrid3D& nodeGrid,
-    bool coplanar, const double eps);
+    const double eps);
+
+/**
+* @brief Given the adjacencies of a graph, find every cycle.
+* @param[in] curr - Current index in the graph.
+* @param[in] adjacencies - Adjacency List of the graph. Since the graph is undirected, we want
+* an edge from A <-> resulting in A's associated vector containing B and vice versa.
+* @param[in] pathStack - Stack containing all the indices traversed (excluding curr) so far.
+* @param[in, out] allCycles - Output buffer containing every cycle in the graph.
+*/
+void dfsEdges(
+    size_t curr,
+    const std::unordered_map<size_t, std::vector<size_t>>& adjacencies,
+    std::set<EdgeKey>& visitedEdges,
+    std::vector<size_t>& pathStack,
+    std::vector<std::vector<size_t>>& allCycles);
+
+/**
+* @brief Find all cycles in a PolyLine soup ("holes").
+* @param[in] edges - Group of pairs of vectors (line segments) in arbitrary order.
+* @param[in] nodeGrid - Spatial node matching structure.
+*/
+
+std::vector<PolyLine> findCycles(const PolyLine& edges, SpatialGrid3D& nodeGrid);
 
 /**
 * @brief Retriangulates and cuts an entire surface mesh along non-coplanar and coplanar intersection constraints.
 * @param[in] meshData - Source mesh to cut.
-* @param[in] NCcoords - Non-coplanar intersection paths indexed by triangle index.
-* @param[in] Ccoords - Coplanar intersection polylines indexed by triangle index.
+* @param[in] NCCuts - Non-coplanar intersection paths indexed by triangle index.
+* @param[in] CCuts - Coplanar intersection polylines indexed by triangle index.
 * @param[in] eps - Geometric tolerance.
-* @param[in] removeInternalSurfaces - If true, discards generated internal/overlapping patch elements.
+* @param[in] removeTouchingSurfaces - If true, discards generated overlapping patch elements.
 * @return Subdivided cut MeshData object.
 */
 MeshData cutMesh(
     const MeshData& meshData,
-    const std::unordered_map<size_t, PolyLine>& NCcoords, const std::unordered_map<size_t, std::vector<PolyLine>>& Ccoords,
-    double eps, bool removeInternalSurfaces = false, bool meshA = true);
+    const std::unordered_map<size_t, PolyLine>& NCCuts, const std::unordered_map<size_t, std::vector<PolyLine>>& CCuts,
+    double eps, bool removeTouchingSurfaces = false, bool meshA = true);

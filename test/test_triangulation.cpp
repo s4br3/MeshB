@@ -63,7 +63,7 @@ void test_triangulate() {
     PolyLine cuts = {
         {Vec3{0.5, 0.0, 0.0}, Vec3{0.5, 1.0, 0.0}}
     };
-    std::vector<Triangle> result = triangulate(boundary, cuts, frame, nodeGrid, true, EPS);
+    std::vector<Triangle> result = triangulate(boundary, cuts, frame, nodeGrid, EPS);
     assert(result.size() >= 4);
     auto uniquePoints = nodeGrid.getUniquePoints();
     bool foundBottomCut = false;
@@ -93,7 +93,7 @@ void test_cutTriangles() {
     PolyLine cuts = {
         {Vec3{1.0, -1.0, 0.0}, Vec3{1.0, 3.0, 0.0}}
     };
-    std::vector<Triangle> result = cutTriangles(tris, nodes, cuts, frame, nodeGrid, true, EPS);
+    std::vector<Triangle> result = cutTriangles(tris, nodes, cuts, frame, nodeGrid, EPS);
     assert(result.size() >= 3);
     size_t gridNodeCount = nodeGrid.getUniquePoints().size();
     for (const Triangle& tri : result) {

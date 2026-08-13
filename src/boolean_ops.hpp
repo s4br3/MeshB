@@ -49,7 +49,7 @@ CollisionContext collideAndCut(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B,
 * @details Despite `combining` the meshes, it maintains mesh A and mesh B as separate entities,
 * just triangulated to ensure conformity
 */
-void meshCombine(bem::TriangleMesh<3>& meshA, bem::TriangleMesh<3>& meshB, bool removeTouchingSurfaces = false, bool cleanDegenerate = false);
+void meshCombine(bem::TriangleMesh<3>& meshA, bem::TriangleMesh<3>& meshB, bool removeTouchingSurfaces = false);
 
 /**
 * @brief Computes CSG Union of two surface meshes.
@@ -58,7 +58,7 @@ void meshCombine(bem::TriangleMesh<3>& meshA, bem::TriangleMesh<3>& meshB, bool 
 * @param[in] cleanDegenerate - Option to strip degenerate elements from final surface.
 * @return Resulting merged openBEM with all the triangles on the "outside" of both initial meshes
 */
-bem::TriangleMesh<3> meshUnion(bem::TriangleMesh<3>& meshA, bem::TriangleMesh<3>& meshB, bool cleanDegenerate = false);
+bem::TriangleMesh<3> meshUnion(bem::TriangleMesh<3>& meshA, bem::TriangleMesh<3>& meshB);
 
 /**
 * @brief Computes CSG Intersection ($A \cap B$) of two surface meshes.
@@ -67,7 +67,7 @@ bem::TriangleMesh<3> meshUnion(bem::TriangleMesh<3>& meshA, bem::TriangleMesh<3>
 * @param[in] cleanDegenerate - Option to strip degenerate elements from final surface.
 * @return Intersected openBEM mesh with all the triangles from mesh A that are inside B, and vice versa
 */
-bem::TriangleMesh<3> meshIntersect(bem::TriangleMesh<3>& meshA, bem::TriangleMesh<3>& meshB, bool cleanDegenerate = false);
+bem::TriangleMesh<3> meshIntersect(bem::TriangleMesh<3>& meshA, bem::TriangleMesh<3>& meshB);
 
 /**
 * @brief Computes symmetric CSG Difference of two surface meshes
@@ -75,4 +75,4 @@ bem::TriangleMesh<3> meshIntersect(bem::TriangleMesh<3>& meshA, bem::TriangleMes
 * @param[in,out] meshB - Tool surface mesh to subtract.
 * @param[in] cleanDegenerate - Option to strip degenerate elements from final surface.
 */
-void meshDifference(bem::TriangleMesh<3>& meshA, bem::TriangleMesh<3>& meshB, bool cleanDegenerate = false);
+void meshDifference(bem::TriangleMesh<3>& meshA, bem::TriangleMesh<3>& meshB);
