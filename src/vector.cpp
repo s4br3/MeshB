@@ -32,3 +32,16 @@ int getLargestAxis(const Vec3& v) {
 int getLargestAxis(const Vec2& v){
     return std::abs(v.y) > std::abs(v.x);
 }
+Vec3 abs(const Vec3& v){
+    Vec3 r = v;
+    r.x = std::abs(r.x);
+    r.y = std::abs(r.y);
+    r.z = std::abs(r.z);
+    return r;
+}
+Vec2 abs(const Vec2& v){
+    Vec2 r = v;
+    r.x = std::abs(r.x);
+    r.y = std::abs(r.y);
+    return r;
+}

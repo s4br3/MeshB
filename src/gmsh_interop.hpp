@@ -14,4 +14,4 @@ bem::TriangleMesh<3> loadMSH(const std::string& filename);
  * @param[in] mesh Source openBEM TriangleMesh<3>.
  * @param[in] filename Output .msh file path.
  */
-void saveMSH(const bem::TriangleMesh<3>& mesh, const std::string& filename);
+void saveMSH(const bem::TriangleMesh<3>& mesh, const std::string& filename, const size_t tag = -1);

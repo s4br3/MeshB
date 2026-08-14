@@ -54,7 +54,7 @@ bem::TriangleMesh<3> loadMSH(const std::string& filename) {
 }
 
 
-void saveMSH(const bem::TriangleMesh<3>& mesh, const std::string& filename) {
+void saveMSH(const bem::TriangleMesh<3>& mesh, const std::string& filename, const size_t tag) {
     const auto& verts = mesh.verts();
     const auto& elems = mesh.elems();
     const auto& tags = mesh.elem_tags();
@@ -62,7 +62,7 @@ void saveMSH(const bem::TriangleMesh<3>& mesh, const std::string& filename) {
     size_t numElems = elems.cols();
     gmsh::initialize();
     gmsh::model::add("ExportedMesh");
-    int surfaceTag = gmsh::model::addDiscreteEntity(2);
+    int surfaceTag = gmsh::model::addDiscreteEntity(2, tag);
     std::vector<double> flatCoords;
     flatCoords.reserve(numVerts * 3);
     std::vector<size_t> nodeTags;

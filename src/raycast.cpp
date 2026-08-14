@@ -13,12 +13,12 @@ static bool intersectRayTri(const Vec3& orig, const Vec3& dir, const Triangle& t
     double inv_det = 1.0 / det;
     Vec3 tvec = orig - nodes[t.v[0]];
     double u = ::dot(tvec, pvec) * inv_det;
-    if (u < eps || u > 1.0 + eps) return false;
+    if (u < -eps || u > 1.0 + eps) return false;
     Vec3 qvec = ::cross(tvec, e1);
     double v = ::dot(dir, qvec) * inv_det;
-    if (v < eps || u + v > 1.0 + eps) return false;
+    if (v < -eps || u + v > 1.0 + eps) return false;
     double t_hit = ::dot(e2, qvec) * inv_det;
-    return t_hit > -eps; 
+    return t_hit > eps; 
 }
 static bool rayBoxIntersect(const Vec3& orig, const Vec3& invDir, const BBox& box) {
     double tmin = -std::numeric_limits<double>::infinity();
@@ -41,7 +41,7 @@ int countRayIntersections(
     Vec3 invDir = {1.0 / dir[0], 1.0 / dir[1], 1.0 / dir[2]};
     int hitCount = 0;
     std::vector<size_t> stack;
-    stack.reserve(32);
+    stack.reserve(64);
     stack.push_back(0);
     while (!stack.empty()) {
         size_t nodeIdx = stack.back();
@@ -51,10 +51,12 @@ int countRayIntersections(
             continue;
         }
         if (node.isLeaf()) {
-            size_t prim_id = bvh.primIds[node.firstId]; 
-            const Triangle& tri = mesh.triangles[prim_id];
-            if (intersectRayTri(orig, dir, tri, mesh.nodes, eps)) {
-                hitCount++;
+            for (size_t i = 0; i < node.primCount; ++i) {
+                size_t prim_id = bvh.primIds[node.firstId + i]; 
+                const Triangle& tri = mesh.triangles[prim_id];
+                if (intersectRayTri(orig, dir, tri, mesh.nodes, eps)) {
+                    hitCount++;
+                }
             }
         } else {
             stack.push_back(node.firstId);
@@ -98,15 +100,17 @@ FaceClass classifyFace(
             const Node& node = targetBVH.nodes[nodeIdx];
             if (!boundingBoxOverlap(ptBox, node.getBbox(), eps)) continue;
             if (node.isLeaf()) {
-                size_t primId = targetBVH.primIds[node.firstId];
-                const Triangle& targetTri = targetMesh.triangles[primId];
-                Vec3 targetNorm = targetTri.normal(targetMesh.nodes);
-                double distToPlane = std::abs(::dot(targetNorm, triCentre - targetTri.centre(targetMesh.nodes)));
-                if (distToPlane <= eps * 10.0) {
-                    Vec3 projPt = triCentre - targetNorm * ::dot(targetNorm, triCentre - targetMesh.nodes[targetTri.v[0]]);
-                    if (pointInTriangle(projPt, targetTri.getVertices(targetMesh.nodes), eps * 10.0)) {
-                        double dotN = ::dot(triNormal, targetNorm);
-                        return (dotN > 0.0) ? FaceClass::CoplanarSame : FaceClass::CoplanarOpp;
+                for (size_t i = 0; i < node.primCount; ++i) {
+                    size_t primId = targetBVH.primIds[node.firstId + i];
+                    const Triangle& targetTri = targetMesh.triangles[primId];
+                    Vec3 targetNorm = targetTri.normal(targetMesh.nodes);
+                    double distToPlane = std::abs(::dot(targetNorm, triCentre - targetTri.centre(targetMesh.nodes)));
+                    if (distToPlane <= eps * 10.0) {
+                        Vec3 projPt = triCentre - targetNorm * ::dot(targetNorm, triCentre - targetMesh.nodes[targetTri.v[0]]);
+                        if (pointInTriangle(projPt, targetTri.getVertices(targetMesh.nodes), eps * 10.0)) {
+                            double dotN = ::dot(triNormal, targetNorm);
+                            return (dotN > 0.0) ? FaceClass::CoplanarSame : FaceClass::CoplanarOpp;
+                        }
                     }
                 }
             } else {

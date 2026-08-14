@@ -4,6 +4,10 @@
 #include <unordered_map>
 #include <CDT.h>
 
+/**
+* @brief TriVerts defined as an array of 3 Vec3s for easy access to coordinates
+* instead of mesh.nodes[t.v[]] every time
+*/
 using TriVerts = std::array<Vec3, 3>;
 
 /**

@@ -10,16 +10,15 @@ enum class BoolOp { Union, Intersect, Difference };
 
 /**
 * @brief Filters and classifies mesh triangles following a CSG boolean operation rule.
-* @param[in] meshA - Primary input surface mesh.
-* @param[in] meshB - Secondary target surface mesh.
+* @param[in] mesh - Primary input surface mesh.
+* @param[in] targetMesh - Target surface mesh to test against.
 * @param[in] eps - Spatial tolerance.
 * @param[in] op - Selected CSG operation (Union, Intersect, Difference).
-* @param[in] isMeshA - True if processing mesh A elements; false if processing mesh B elements.
 * @return Boolean Mask for which indices to remove from the MeshData
 */
 std::vector<bool> getRemovalMask(
-    const MeshData& meshA, const MeshData& meshB,
-    double eps, BoolOp op, bool isMeshA);
+    const MeshData& mesh, const MeshData& targetMesh,
+    double eps, BoolOp op);
 
 /**
 * @brief Generates non-conformal mesh interface connections between two independent meshes.

@@ -55,6 +55,20 @@ struct Vec3 {
         r.z = z - rhs.z;
         return r;
     }
+    Vec3 operator-() const{
+        Vec3 r;
+        r.x = -x;
+        r.y = -y;
+        r.z = -z;
+        return r;
+    }
+    Vec3 operator*(const Vec3 rhs) const{
+        Vec3 r;
+        r.x = x * rhs.x;
+        r.y = y * rhs.y;
+        r.z = z * rhs.z;
+        return r;
+    }
     Vec3 operator*(const double rhs) const{
         Vec3 r;
         r.x = x * rhs;
@@ -115,6 +129,18 @@ struct Vec2 {
         r.y = y - rhs.y;
         return r;
     }
+    Vec2 operator-() const{
+        Vec2 r;
+        r.x = -x;
+        r.y = -y;
+        return r;
+    }
+    Vec2 operator*(const Vec2 rhs) const{
+        Vec2 r;
+        r.x = x * rhs.x;
+        r.y = y * rhs.y;
+        return r;
+    }
     Vec2 operator*(const double rhs) const{
         Vec2 r;
         r.x = x * rhs;
@@ -144,3 +170,5 @@ Vec3 cross(const Vec3& lhs, const Vec3& rhs);
 double cross2D(const Vec2& lhs, const Vec2& rhs);
 int getLargestAxis(const Vec3& v);
 int getLargestAxis(const Vec2& v);
+Vec3 abs(const Vec3& v);
+Vec2 abs(const Vec2& v);

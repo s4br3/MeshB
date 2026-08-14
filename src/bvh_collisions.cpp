@@ -150,7 +150,7 @@ void findAllCollisions(
     CollisionContext& ctx)
 {
     std::vector<std::pair<size_t, size_t>> stack;
-    stack.reserve(64);
+    stack.reserve(128);
     stack.emplace_back(0, 0);
     while (!stack.empty()) {
         auto [node1Idx, node2Idx] = stack.back();

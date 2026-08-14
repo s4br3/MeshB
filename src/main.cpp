@@ -19,8 +19,8 @@ void testMeshDifference(bem::TriangleMesh<3>& meshA,
     auto A = meshA;
     auto B = meshB;
     meshDifference(A, B);
-    saveMSH(A, joinMsh(folder, "difference1.msh"));
-    saveMSH(B, joinMsh(folder, "difference2.msh"));
+    saveMSH(A, joinMsh(folder, "difference1.msh"), 1);
+    saveMSH(B, joinMsh(folder, "difference2.msh"), 2);
 }
 
 void testMeshUnion(bem::TriangleMesh<3>& meshA,
@@ -29,9 +29,8 @@ void testMeshUnion(bem::TriangleMesh<3>& meshA,
 {
     auto A = meshA;
     auto B = meshB;
-    meshUnion(A, B);
-    saveMSH(A, joinMsh(folder, "union1.msh"));
-    saveMSH(B, joinMsh(folder, "union2.msh"));
+    bem::TriangleMesh<3> unionMesh = meshUnion(A, B);
+    saveMSH(unionMesh, joinMsh(folder, "union.msh"), 1);
 }
 
 void testMeshIntersect(bem::TriangleMesh<3>& meshA,
@@ -40,9 +39,8 @@ void testMeshIntersect(bem::TriangleMesh<3>& meshA,
 {
     auto A = meshA;
     auto B = meshB;
-    meshIntersect(A, B);
-    saveMSH(A, joinMsh(folder, "intersect1.msh"));
-    saveMSH(B, joinMsh(folder, "intersect2.msh"));
+    bem::TriangleMesh<3> intersectMesh = meshIntersect(A, B);
+    saveMSH(intersectMesh, joinMsh(folder, "intersect.msh"), 1);
 }
 
 void testMeshCombine(bem::TriangleMesh<3>& meshA,
@@ -53,8 +51,8 @@ void testMeshCombine(bem::TriangleMesh<3>& meshA,
     auto A = meshA;
     auto B = meshB;
     meshCombine(A, B, removeTouchingSurfaces);
-    saveMSH(A, joinMsh(folder, "combine1.msh"));
-    saveMSH(B, joinMsh(folder, "combine2.msh"));
+    saveMSH(A, joinMsh(folder, "combine1.msh"), 1);
+    saveMSH(B, joinMsh(folder, "combine2.msh"), 2);
 }
 
 int main(int argc, char** argv) {
@@ -71,7 +69,7 @@ int main(int argc, char** argv) {
     testMeshDifference(meshA, meshB, outFolder);
     testMeshUnion(meshA, meshB, outFolder);
     testMeshIntersect(meshA, meshB, outFolder);
-    //testMeshCombine(meshA, meshB, outFolder, true);
+    testMeshCombine(meshA, meshB, outFolder, true);
     return 0;
 }
 
