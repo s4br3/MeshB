@@ -12,8 +12,10 @@ void test_basic_math_helpers() {
     assert(h1 != h3);
     BBox b1({Vec3{0,0,0}, Vec3{10,0,0}});
     BBox b2({Vec3{0,0,0}, Vec3{0,20,0}});
-    double meshEps = computeMeshEpsilon(b1, b2);
+    double meshEps = computeMeshesEpsilon(b1, b2);
     assert(std::abs(meshEps - 20.0 * 1e-7) < 1e-12);
+    meshEps = computeMeshEpsilon({Vec3{0,0,0}, Vec3{10,0,0}});
+    assert(std::abs(meshEps) - 3.16e-7 < 1e-9);
     std::vector<std::vector<int>> nested = {{1, 2}, {3, 4, 5}, {6}};
     auto flat = flattenVector(nested);
     assert(flat.size() == 6);

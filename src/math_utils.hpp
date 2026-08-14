@@ -25,8 +25,14 @@ size_t hashCombine(size_t seed, int64_t v);
 * @param[in] boxB - Bounding box of mesh B.
 * @return Computed absolute numerical tolerance.
 */
-double computeMeshEpsilon(const BBox& boxA, const BBox& boxB);
+double computeMeshesEpsilon(const BBox& boxA, const BBox& boxB);
 
+/**
+* @brief Computes geometric tolerance for this single mesh (relevant to forced
+* triangulation on loading meshes)
+* @param[in] nodes - List of vector coordinates of vertices in the mesh
+*/
+double computeMeshEpsilon(const std::vector<Vec3>& nodes);
 /**
 * @brief Flattens a 2D nested vector into a 1D vector.
 * @tparam T Type of elements contained in the vector.

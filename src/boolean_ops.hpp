@@ -6,19 +6,20 @@
 * @enum BoolOp
 * @brief CSG (Constructive Solid Geometry) boolean operations supported on closed surface meshes.
 */
-enum class BoolOp { Union, Intersect, Difference };
+enum class BoolOp {Union, Intersect, DifferenceBase, DifferenceTool};
 
 /**
-* @brief Filters and classifies mesh triangles following a CSG boolean operation rule.
-* @param[in] mesh - Primary input surface mesh.
-* @param[in] targetMesh - Target surface mesh to test against.
-* @param[in] eps - Spatial tolerance.
-* @param[in] op - Selected CSG operation (Union, Intersect, Difference).
-* @return Boolean Mask for which indices to remove from the MeshData
+* @brief Overload for evaluating surface triangle classification and removal mask via a BVH tree.
+* @param[in] mesh - Primary surface mesh to filter.
+* @param[in] targetMesh - Target surface mesh evaluated against.
+* @param[in] targetBVH - Prebuilt Bounding Volume Hierarchy tree of target mesh.
+* @param[in] eps - Spatial distance tolerance.
+* @param[in] op - Selected CSG operation rule.
+* @return Boolean removal mask array.
 */
 std::vector<bool> getRemovalMask(
-    const MeshData& mesh, const MeshData& targetMesh,
-    double eps, BoolOp op);
+    const MeshData& mesh, const MeshData& targetMesh, 
+    const BVH& targetBVH, double eps, BoolOp op);
 
 /**
 * @brief Generates non-conformal mesh interface connections between two independent meshes.
@@ -36,7 +37,40 @@ Connection nonConformal(const bem::TriangleMesh<3>& meshA, const bem::TriangleMe
 * @return CollisionContext holding mapped intersection features.
 */
 CollisionContext collideAndCut(bem::TriangleMesh<3>& A, bem::TriangleMesh<3>& B, bool removeTouchingSurfaces = false);
+/**
+* @brief Retriangulates and cuts two MeshData structures to guarantee boundary conformity.
+* @param[in,out] meshA - First surface mesh modified in-place.
+* @param[in,out] meshB - Second surface mesh modified in-place.
+* @param[in] removeTouchingSurfaces - Option to strip coplanar co-facing surfaces.
+* @return Computed spatial epsilon tolerance.
+*/
+double meshCombine(MeshData& meshA, MeshData& meshB, bool removeTouchingSurfaces = false);
 
+/**
+* @brief Computes CSG Union of two surface MeshData objects.
+* @param[in,out] meshA - Primary surface mesh.
+* @param[in,out] meshB - Secondary surface mesh.
+* @param[out] outEps - Optional output pointer to store numerical tolerance.
+* @return Resulting merged surface MeshData.
+*/
+MeshData meshUnion(MeshData& meshA, MeshData& meshB, double* outEps = nullptr);
+
+/**
+* @brief Computes CSG Intersection ($A \cap B$) of two surface MeshData objects.
+* @param[in,out] meshA - Primary surface mesh.
+* @param[in,out] meshB - Secondary surface mesh.
+* @param[out] outEps - Optional output pointer to store numerical tolerance.
+* @return Intersected MeshData object.
+*/
+MeshData meshIntersect(MeshData& meshA, MeshData& meshB, double* outEps = nullptr);
+
+/**
+* @brief Computes CSG Difference ($A \setminus B$) of two surface MeshData objects in-place.
+* @param[in,out] meshA - Primary surface mesh modified in-place to $A \setminus B$.
+* @param[in,out] meshB - Secondary surface mesh modified in-place to $B \setminus A$.
+* @return Computed spatial epsilon tolerance.
+*/
+double meshDifference(MeshData& meshA, MeshData& meshB);
 /**
 * @brief Combines two meshes into a unified mesh surface without evaluating CSG interior removal.
 * @param[in,out] meshA - First openBEM surface mesh at input and the modified 

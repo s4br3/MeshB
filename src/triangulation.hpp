@@ -2,9 +2,9 @@
 #include "mesh_types.hpp"
 #include "math_utils.hpp"
 #include <set>
-
 using EdgeKey = std::pair<size_t, size_t>;
 using CDT_Triangulation = CDT::Triangulation<double>;
+
 /**
 * @brief Standard key of any edge, with smaller index first and larger index second.
 * @param [in] u - Index of one endpoint of the edge.
@@ -14,6 +14,7 @@ using CDT_Triangulation = CDT::Triangulation<double>;
 inline EdgeKey makeEdgeKey(size_t u, size_t v) {
     return {std::min(u, v), std::max(u, v)};
 }
+
 /**
 * @brief Constructs an orthonormal 2D projection frame for a planar surface.
 * @param[in] normal - Plane normal vector.
@@ -21,6 +22,7 @@ inline EdgeKey makeEdgeKey(size_t u, size_t v) {
 * @return Orthonormal ProjectionFrame object.
 */
 ProjectionFrame computeSharedFrame(const Vec3& normal, const Vec3& origin);
+
 /**
 * @brief Finds whether a point P is on the line segment AB
 * @param[in] P - Point to test
@@ -33,6 +35,7 @@ static bool pointOnSegment(
     const CDT::V2d<double>& P,
     const CDT::V2d<double>& A, const CDT::V2d<double>& B,
     double eps);
+
 /**
 * @brief Computes 2D line-segment intersection point.
 * @param[in] A - Start point of segment 1.
@@ -71,12 +74,12 @@ void buildSubdividedEdges(
 * @param[in] frame - Projection frame defining planar mapping.
 * @param[in] eps - Spatial tolerance threshold.
 * @param[in,out] nodeGrid - Spatial 3D lookup grid for vertex merging.
-* @return Array of newly retriangulated 3D Triangle elements.
+* @param[out] outTriangles - Output buffer for newly retriangulated 3D Triangle elements.
 */
-std::vector<Triangle> triangulate(
+void triangulate(
     const PolyLine& polygonSegments, const PolyLine& cuts,
     const ProjectionFrame& frame, SpatialGrid3D& nodeGrid,
-    double eps);
+    double eps, std::vector<Triangle>& outTriangles);
 
 /**
 * @brief Subdivides and remeshes a list of triangles along intersection polylines.
@@ -86,12 +89,12 @@ std::vector<Triangle> triangulate(
 * @param[in] frame - Planar projection frame.
 * @param[in,out] nodeGrid - Spatial node matching structure.
 * @param[in] eps - Tolerance threshold.
-* @return Subdivided set of output triangles.
+* @param[out] outTriangles - Output buffer for subdivided set of triangles.
 */
-std::vector<Triangle> cutTriangles(
+void cutTriangles(
     const std::vector<Triangle>& tris, const std::vector<Vec3>& nodes, const PolyLine& cuts,
     const ProjectionFrame& frame, SpatialGrid3D& nodeGrid,
-    const double eps);
+    const double eps, std::vector<Triangle>& outTriangles);
 
 /**
 * @brief Given the adjacencies of a graph, find every cycle.
@@ -112,10 +115,22 @@ void dfsEdges(
 * @brief Find all cycles in a PolyLine soup ("holes").
 * @param[in] edges - Group of pairs of vectors (line segments) in arbitrary order.
 * @param[in] nodeGrid - Spatial node matching structure.
+* @param[out] outLoops - Output buffer containing all valid polyline loops found.
 */
+void findCycles(const PolyLine& edges, SpatialGrid3D& nodeGrid, std::vector<PolyLine>& outLoops);
 
-std::vector<PolyLine> findCycles(const PolyLine& edges, SpatialGrid3D& nodeGrid);
-
+/**
+* @brief Determines if a point projected into 2D space falls inside any cycle hole region.
+* @param[in] centre - 3D Query coordinate.
+* @param[in] allHoles - Vector of closed boundary polyline cycles defining hole regions.
+* @param[in] frame - Planar projection frame.
+* @return True if point lies inside any hole boundary.
+*/
+bool isCentroidInHole(
+    const Vec3 centre,
+    const std::vector<PolyLine>& allHoles, 
+    const ProjectionFrame& frame);
+    
 /**
 * @brief Retriangulates and cuts an entire surface mesh along non-coplanar and coplanar intersection constraints.
 * @param[in] meshData - Source mesh to cut.
@@ -128,4 +143,4 @@ std::vector<PolyLine> findCycles(const PolyLine& edges, SpatialGrid3D& nodeGrid)
 MeshData cutMesh(
     const MeshData& meshData,
     const std::unordered_map<size_t, PolyLine>& NCCuts, const std::unordered_map<size_t, std::vector<PolyLine>>& CCuts,
-    double eps, bool removeTouchingSurfaces = false, bool meshA = true);
+    double eps, bool removeTouchingSurfaces = false);

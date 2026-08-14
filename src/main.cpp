@@ -1,75 +1,72 @@
 #include "boolean_ops.hpp"
-#include "gmsh_interop.hpp"
+#include "mesh_io.hpp"
 #include <iostream>
 #include <filesystem>
 #include <string>
+
 namespace fs = std::filesystem;
 
-static std::string joinMsh(const fs::path& folder, const char* name) {
+static std::string joinName(const fs::path& folder, const std::string& name) {
     fs::path p = folder;
     p /= name;
     return p.string();
 }
 
-
-void testMeshDifference(bem::TriangleMesh<3>& meshA,
-                         bem::TriangleMesh<3>& meshB,
-                         const std::string& folder)
-{
-    auto A = meshA;
-    auto B = meshB;
-    meshDifference(A, B);
-    saveMSH(A, joinMsh(folder, "difference1.msh"), 1);
-    saveMSH(B, joinMsh(folder, "difference2.msh"), 2);
-}
-
-void testMeshUnion(bem::TriangleMesh<3>& meshA,
-                    bem::TriangleMesh<3>& meshB,
-                    const std::string& folder)
-{
-    auto A = meshA;
-    auto B = meshB;
-    bem::TriangleMesh<3> unionMesh = meshUnion(A, B);
-    saveMSH(unionMesh, joinMsh(folder, "union.msh"), 1);
-}
-
-void testMeshIntersect(bem::TriangleMesh<3>& meshA,
-                        bem::TriangleMesh<3>& meshB,
-                        const std::string& folder)
-{
-    auto A = meshA;
-    auto B = meshB;
-    bem::TriangleMesh<3> intersectMesh = meshIntersect(A, B);
-    saveMSH(intersectMesh, joinMsh(folder, "intersect.msh"), 1);
-}
-
-void testMeshCombine(bem::TriangleMesh<3>& meshA,
-                      bem::TriangleMesh<3>& meshB,
-                      const std::string& folder,
-                    bool removeTouchingSurfaces = false)
-{
-    auto A = meshA;
-    auto B = meshB;
-    meshCombine(A, B, removeTouchingSurfaces);
-    saveMSH(A, joinMsh(folder, "combine1.msh"), 1);
-    saveMSH(B, joinMsh(folder, "combine2.msh"), 2);
-}
-
 int main(int argc, char** argv) {
-    if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " <inFolder> <outFolder>\n";
+    if (argc < 5) {
+        std::cerr << "Usage: " << argv[0] << " <meshA_path> <meshB_path> <outFolder> <operation> [removeTouchingSurfaces(0/1)]\n";
+        std::cerr << "Operations available: union, intersect, difference, combine\n";
         return 1;
     }
-    std::string inFolder  = argv[1];
-    std::string outFolder = argv[2];
-    std::string mshAPath = inFolder + "/untitled1.msh";
-    std::string mshBPath = inFolder + "/untitled2.msh";
-    bem::TriangleMesh<3> meshA = loadMSH(mshAPath);
-    bem::TriangleMesh<3> meshB = loadMSH(mshBPath);
-    testMeshDifference(meshA, meshB, outFolder);
-    testMeshUnion(meshA, meshB, outFolder);
-    testMeshIntersect(meshA, meshB, outFolder);
-    testMeshCombine(meshA, meshB, outFolder, true);
+
+    std::string meshAPath  = argv[1];
+    std::string meshBPath  = argv[2];
+    std::string outFolder = argv[3];
+    std::string operation = argv[4];
+    bool removeTouching = false;
+    if (argc >= 6) {
+        removeTouching = (std::string(argv[5]) == "1" || std::string(argv[5]) == "true");
+    }
+    if (!fs::exists(outFolder)) {
+        fs::create_directories(outFolder);
+    }
+    std::cout << "Loading meshes...\n";
+    MeshData meshA = loadMesh(meshAPath);
+    MeshData meshB = loadMesh(meshBPath);
+    std::cout << "Performing operation: " << operation << "...\n";
+    if (operation == "union") {
+        MeshData unionMesh = meshUnion(meshA, meshB);
+        std::string outFile = "union_result."+getExtension(meshAPath);
+        saveMesh(unionMesh, joinName(outFolder, outFile));
+        std::cout << "Saved union results to output folder\n";
+    } 
+    else if (operation == "intersect") {
+        MeshData intersectMesh = meshIntersect(meshA, meshB);
+        std::string outFile = "intersect_result."+getExtension(meshAPath);
+        saveMesh(intersectMesh, joinName(outFolder, outFile));
+        std::cout << "Saved intersect results to output folder\n";
+    } 
+    else if (operation == "difference") {
+        meshDifference(meshA, meshB);
+        std::string outFileA = "difference_result_A."+getExtension(meshAPath);
+        std::string outFileB = "difference_result_B."+getExtension(meshBPath);
+        saveMesh(meshA, joinName(outFolder, outFileA));
+        saveMesh(meshB, joinName(outFolder, outFileB));
+        std::cout << "Saved difference results to output folder.\n";
+    } 
+    else if (operation == "combine") {
+        meshCombine(meshA, meshB, removeTouching);
+        std::string outFileA = "combine_result_A."+getExtension(meshAPath);
+        std::string outFileB = "combine_result_B."+getExtension(meshBPath);
+        saveMesh(meshA, joinName(outFolder, outFileA));
+        saveMesh(meshB, joinName(outFolder, outFileB));
+        std::cout << "Saved combine results to output folder.\n";
+    } 
+    else {
+        std::cerr << "Error: Unknown operation '" << operation << "'\n";
+        return 1;
+    }
+
+    std::cout << "Done!\n";
     return 0;
 }
-

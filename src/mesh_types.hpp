@@ -105,7 +105,22 @@ struct MeshData {
     MeshData(MeshData&&) noexcept = default;
     MeshData& operator=(MeshData&&) noexcept = default;
 };
+struct PolygonSoup {
+    std::vector<Vec3> nodes;                    /**< Array of 3D node coordinates */
+    std::vector<std::vector<size_t>> polygons;  /**<Element connectivity table */
+};
+/**
+ * @brief Formatted stream output operator for MeshData.
+ * @param[in,out] os - Target output stream.
+ * @param[in] mesh - Surface mesh container to print.
+ * @return Reference to the output stream.
+ */
 std::ostream& operator<<(std::ostream& os, const MeshData& mesh);
+
+/**
+ * @brief Recomputes precalculated properties (normals, centroids, default tags) for a mesh.
+ * @param[in,out] mesh - Target mesh container to update.
+ */
 void recomputeMeshData(MeshData& mesh);
 /**
 * @struct CollisionContext
@@ -132,6 +147,7 @@ struct Connection {
     std::unordered_map<size_t, std::vector<Vec3>> meshBIntersections; /**< Intersection points on mesh B elements */
     std::unordered_map<size_t, std::vector<size_t>> aToBConnections;  /**< Node topology mapping from A to B */
     std::unordered_map<size_t, std::vector<size_t>> bToAConnections;  /**< Node topology mapping from B to A */
+    std::unordered_map<size_t, std::unordered_map<size_t, double>> aToBAreas; /**< Overlap area between tagA and tagB */
 };
 
 /**

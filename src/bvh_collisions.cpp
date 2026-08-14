@@ -1,6 +1,9 @@
 #include "bvh_collisions.hpp"
 #include "math_utils.hpp"
 #include <cstddef>
+thread_local static std::vector<Vec3> s_polyBuffer;
+thread_local static std::vector<Vec3> s_outBuffer;
+thread_local static std::vector<Vec3> s_uniquePolyBuffer;
 bool pointInTriangle(const Vec3& p, const TriVerts& vertices, double eps) {
     Vec3 v0 = vertices[2] - vertices[0];
     Vec3 v1 = vertices[1] - vertices[0];
@@ -89,50 +92,48 @@ std::optional<std::pair<Vec3, Vec3>> findIntersectionPointsNC(
     Vec3 end   = (line1B < line2B - eps) ? B : ((line2B < line1B - eps) ? D : ((B + D) * 0.5));
     return std::make_pair(start, end);
 }
-std::vector<Vec3> findIntersectionPointsC(
+const std::vector<Vec3>& findIntersectionPointsC(
     const TriVerts& vertices1,
     const TriVerts& vertices2, const Vec3& n2, const Vec3& c2,
     const double eps)
 {
-    std::vector<Vec3> poly, out;
-    poly.reserve(6);
-    out.reserve(6);
-    poly.assign(vertices1.begin(), vertices1.end());
+    s_polyBuffer.clear();
+    s_outBuffer.clear();
+    s_uniquePolyBuffer.clear();
+    s_polyBuffer.assign(vertices1.begin(), vertices1.end());
     for (int i = 0; i < 3; ++i) {
-        if (poly.empty()) break;
+        if (s_polyBuffer.empty()) break;
         const Vec3& e0 = vertices2[i];
         const Vec3& e1 = vertices2[(i + 1) % 3];
         Vec3 edgeDir = e1 - e0;
         Vec3 inwardNormal = cross(n2, edgeDir);
         double distC = dot(c2 - e0, inwardNormal);
         int s = sign(distC, eps);
-        out.clear();
-        Vec3 S = poly.back();
+        s_outBuffer.clear();
+        Vec3 S = s_polyBuffer.back();
         double distS = dot(S - e0, inwardNormal);
         bool SInside = (distS * s) >= -eps;
-        for (const Vec3& E : poly) {
+        for (const Vec3& E : s_polyBuffer) {
             double distE = dot(E - e0, inwardNormal);
             bool EInside = (distE * s) >= -eps;
             if (EInside != SInside) {
                 double denom = (distS - distE);
                 if (std::fabs(denom) > eps) {
                     double t = distS / denom;
-                    out.push_back(S + (E - S) * t);
+                    s_outBuffer.push_back(S + (E - S) * t);
                 }
             }
-            if (EInside) out.push_back(E);
+            if (EInside) s_outBuffer.push_back(E);
             S = E;
             distS = distE;
             SInside = EInside;
         }
-        poly.swap(out);
+        s_polyBuffer.swap(s_outBuffer);
     }
-    std::vector<Vec3> uniquePoly;
-    uniquePoly.reserve(poly.size());
     const double sqrEps = eps * eps;
-    for (const auto& pt : poly) {
+    for (const auto& pt : s_polyBuffer) {
         bool isDuplicate = false;
-        for (const auto& existing : uniquePoly) {
+        for (const auto& existing : s_uniquePolyBuffer) {
             Vec3 diff = pt - existing;
             if (dot(diff, diff) <= sqrEps) {
                 isDuplicate = true;
@@ -140,10 +141,10 @@ std::vector<Vec3> findIntersectionPointsC(
             }
         }
         if (!isDuplicate) {
-            uniquePoly.push_back(pt);
+            s_uniquePolyBuffer.push_back(pt);
         }
     }
-    return uniquePoly;
+    return s_uniquePolyBuffer;
 }
 void findAllCollisions(
     const BVH& bvh1, const BVH& bvh2,
@@ -161,10 +162,10 @@ void findAllCollisions(
             continue;
         }
         if (node1.isLeaf() && node2.isLeaf()) {
-            for (size_t i = 0; i < node1.primCount; ++i) {
-                size_t prim1Id = bvh1.primIds[node1.firstId + i];
-                for (size_t j = 0; j < node2.primCount; ++j) {
-                    size_t prim2Id = bvh2.primIds[node2.firstId + j];
+            for (size_t i = node1.firstId; i < node1.firstId + node1.primCount; ++i) {
+                size_t prim1Id = bvh1.primIds[i];
+                for (size_t j = node2.firstId; j < node2.firstId + node2.primCount; ++j) {
+                    size_t prim2Id = bvh2.primIds[j];
                     const TriVerts& t1 = ctx.meshDataA.triangles[prim1Id].getVertices(ctx.meshDataA.nodes);
                     const TriVerts& t2 = ctx.meshDataB.triangles[prim2Id].getVertices(ctx.meshDataB.nodes);
                     const Vec3& n1 = ctx.meshDataA.normals[prim1Id];
@@ -233,7 +234,7 @@ CollisionContext detectCollisions(const MeshData& meshA, const MeshData& meshB) 
     BVH bvhA = buildMeshBVH(ctx.meshDataA, ctx.eps);
     BVH bvhB = buildMeshBVH(ctx.meshDataB, ctx.eps);
     if (!bvhA.nodes.empty() && !bvhB.nodes.empty()) {
-        ctx.eps = computeMeshEpsilon(bvhA.nodes[0].getBbox(), bvhB.nodes[0].getBbox());
+        ctx.eps = computeMeshesEpsilon(bvhA.nodes[0].getBbox(), bvhB.nodes[0].getBbox());
         findAllCollisions(bvhA, bvhB, ctx);
     }
     return ctx;

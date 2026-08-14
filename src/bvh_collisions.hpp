@@ -83,7 +83,7 @@ std::optional<std::pair<Vec3, Vec3>> findIntersectionPointsNC(
 * @param[in] eps - Tolerance value.
 * @return Polyline defining overlapping region boundaries.
 */
-std::vector<Vec3> findIntersectionPointsC(
+const std::vector<Vec3>& findIntersectionPointsC(
     const TriVerts& vertices1,
     const TriVerts& vertices2, const Vec3& n2, const Vec3& c2,
     const double eps);
