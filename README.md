@@ -1,10 +1,10 @@
 MeshB: A boolean operations solver that hopes to match up to predicate-based counterparts with floating-point arithmetic, built for researchers trying to model electromagnetic flow (though it can work for others just as well).
 
-Usage: Your mesh file inputs, the folder where the mesh(es) should be outputted and the operation to be carried out.
+Usage: Your mesh file inputs, the folder where the mesh(es) should be outputted and the operation to be carried out.  
+
 Additionally, any program can directly call the functions from boolean_ops.hpp, whether on Shaswat Sharma's OpenBEM's TriangleMesh<3> struct or my own MeshData which holds vector(Vec3(double)) nodes and vector (Triangle(array(size_t, 3))) triangles, where the triangles are made up of indices of the associated nodes. You can also call individual functions directly from any header if you want to operate the pipeline your own way.
 
-Build: NO requirements whatsoever. The only libraries used are Shashwat Sharma's OpenBEM finite-element method solver (for TriangleMesh<3> compatibility) and Artem Ogre's CDT library,
-which is fetched directly.
+Build: NO requirements whatsoever. The only libraries used are Shashwat Sharma's OpenBEM finite-element method solver (for TriangleMesh<3> compatibility) and Artem Ogre's CDT library, which is fetched directly.
 
 Contributing: Unlikely anybody will care about this library, but if you happen to be an odd manner of human, you can just send in pull requests, and I'll see what I can do.
 
