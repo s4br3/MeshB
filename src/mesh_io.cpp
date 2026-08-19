@@ -109,34 +109,34 @@ MeshData loadOBJ(const std::string &filename) {
     MeshData mesh;
     mesh.nodes = soup.nodes;
     SpatialGrid3D nodeGrid(eps);
-    for (const auto& pt : mesh.nodes) {
-        nodeGrid.getOrAdd(pt);
+    std::vector<size_t> indexMap(mesh.nodes.size());
+    for (size_t i = 0; i < mesh.nodes.size(); ++i) {
+        indexMap[i] = nodeGrid.getOrAdd(mesh.nodes[i]);
     }
     for (const auto& poly : soup.polygons) {
         if (poly.size() < 3) continue;
         if (poly.size() == 3){
-            mesh.triangles.push_back({poly[0], poly[1], poly[2]});
+            mesh.triangles.push_back({indexMap[poly[0]], indexMap[poly[1]], indexMap[poly[2]]});
             continue;
         }
         if (poly.size() == 4) {
             double d1 = (mesh.nodes[poly[0]] - mesh.nodes[poly[2]]).length2();
-            double d2 = (mesh.nodes[poly[1]] - mesh.nodes[poly[3]]) .length2();
+            double d2 = (mesh.nodes[poly[1]] - mesh.nodes[poly[3]]).length2();
             if (d1 < d2) {
-                mesh.triangles.push_back({poly[2], poly[1], poly[0]});
-                mesh.triangles.push_back({poly[3], poly[2], poly[0]});
+                mesh.triangles.push_back({indexMap[poly[0]], indexMap[poly[1]], indexMap[poly[2]]});
+                mesh.triangles.push_back({indexMap[poly[0]], indexMap[poly[2]], indexMap[poly[3]]});
             } else {
-                mesh.triangles.push_back({poly[3], poly[1], poly[0]});
-                mesh.triangles.push_back({poly[3], poly[2], poly[1]});
+                mesh.triangles.push_back({indexMap[poly[0]], indexMap[poly[1]], indexMap[poly[3]]});
+                mesh.triangles.push_back({indexMap[poly[1]], indexMap[poly[2]], indexMap[poly[3]]});
             }
             continue;
         }
-        addPolygonToMesh(poly, mesh, nodeGrid, eps, 0);
+        addPolygonToMesh(poly, mesh, nodeGrid, eps, 0); 
     }
     mesh.nodes = nodeGrid.getUniquePoints();
     recomputeMeshData(mesh);
     return mesh;
 }
-
 void saveOBJ(const MeshData& mesh, const std::string& filename) {
     std::ofstream file(filename);
     if (!file.is_open()) throw std::runtime_error("Failed to open file for writing: " + filename);
@@ -173,7 +173,6 @@ MeshData loadSTL(const std::string &filename) {
     recomputeMeshData(mesh);
     return mesh;
 }
-
 void saveSTL(const MeshData& mesh, const std::string& filename) {
     std::ofstream file(filename);
     if (!file.is_open()) throw std::runtime_error("Failed to open file for writing: " + filename);
@@ -236,44 +235,38 @@ MeshData loadMSH(const std::string &filename) {
             }
         }
     }
-
     double eps = computeMeshEpsilon(soup.nodes);
-
     MeshData mesh;
     mesh.nodes = soup.nodes;
-
     SpatialGrid3D nodeGrid(eps);
-    for (const auto& pt : mesh.nodes) {
-        nodeGrid.getOrAdd(pt);
+    std::vector<size_t> indexMap(mesh.nodes.size());
+    for (size_t i = 0; i < mesh.nodes.size(); ++i) {
+        indexMap[i] = nodeGrid.getOrAdd(mesh.nodes[i]);
     }
-
-    for (size_t i = 0; i < soup.polygons.size(); ++i) {
-        std::vector<size_t>& poly = soup.polygons[i];
+    for (const auto& poly : soup.polygons) {
         if (poly.size() < 3) continue;
         if (poly.size() == 3){
-            mesh.triangles.push_back({poly[0], poly[1], poly[2]});
+            mesh.triangles.push_back({indexMap[poly[0]], indexMap[poly[1]], indexMap[poly[2]]});
             continue;
         }
         if (poly.size() == 4) {
             double d1 = (mesh.nodes[poly[0]] - mesh.nodes[poly[2]]).length2();
-            double d2 = (mesh.nodes[poly[1]] - mesh.nodes[poly[3]]) .length2();
+            double d2 = (mesh.nodes[poly[1]] - mesh.nodes[poly[3]]).length2();
             if (d1 < d2) {
-                mesh.triangles.push_back({poly[2], poly[1], poly[0]});
-                mesh.triangles.push_back({poly[3], poly[2], poly[0]});
+                mesh.triangles.push_back({indexMap[poly[0]], indexMap[poly[1]], indexMap[poly[2]]});
+                mesh.triangles.push_back({indexMap[poly[0]], indexMap[poly[2]], indexMap[poly[3]]});
             } else {
-                mesh.triangles.push_back({poly[3], poly[1], poly[0]});
-                mesh.triangles.push_back({poly[3], poly[2], poly[1]});
+                mesh.triangles.push_back({indexMap[poly[0]], indexMap[poly[1]], indexMap[poly[3]]});
+                mesh.triangles.push_back({indexMap[poly[1]], indexMap[poly[2]], indexMap[poly[3]]});
             }
             continue;
         }
-        addPolygonToMesh(poly, mesh, nodeGrid, eps, polyTags[i]);
+        addPolygonToMesh(poly, mesh, nodeGrid, eps, 0); 
     }
-
     mesh.nodes = nodeGrid.getUniquePoints();
     recomputeMeshData(mesh);
     return mesh;
 }
-
 void saveMSH(const MeshData& mesh, const std::string& filename) {
     std::ofstream file(filename);
     if (!file.is_open()) throw std::runtime_error("Failed to open file for writing: " + filename);
