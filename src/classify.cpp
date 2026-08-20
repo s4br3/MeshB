@@ -1,5 +1,5 @@
 #include "classify.hpp"
-#include "bvh_collisions.hpp"
+#include "geom_3d.hpp"
 #include <vector>
 #include <algorithm>
 bool isMeshClosed(const MeshData& mesh) {

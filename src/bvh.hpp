@@ -93,7 +93,7 @@ struct Bin {
 * @brief Bounding Volume Hierarchy tree for spatial ray tracing and collision acceleration.
 */
 struct BVH {
-    const int binCount = 16;
+    static constexpr int binCount = 16;
     std::vector<size_t> primIds;
     std::vector<Node> nodes;
 

@@ -2,7 +2,6 @@
 #include "vector.hpp"
 #include "bvh.hpp"
 #include <unordered_map>
-#include <CDT.h>
 
 /**
 * @brief TriVerts defined as an array of 3 Vec3s for easy access to coordinates
@@ -136,6 +135,7 @@ struct CollisionContext {
     std::unordered_map<size_t, PolyLine> NCBcoords;                /**< Non-coplanar intersection segments for mesh B */
     std::unordered_map<size_t, std::vector<PolyLine>> CBcoords;    /**< Coplanar intersection polylines for mesh B */
     std::unordered_map<size_t, std::vector<size_t>> Btris;         /**< Mapping of intersected elements in mesh B */
+    bool conformal = false;                                        /**< Boolean flag for early quit if meshes are conformal */
 };
 
 /**
@@ -143,11 +143,11 @@ struct CollisionContext {
 * @brief Stores vertex mappings and connectivity across non-conformal mesh interfaces.
 */
 struct Connection {
-    std::unordered_map<size_t, std::vector<Vec3>> meshAIntersections; /**< Intersection points on mesh A elements */
-    std::unordered_map<size_t, std::vector<Vec3>> meshBIntersections; /**< Intersection points on mesh B elements */
-    std::unordered_map<size_t, std::vector<size_t>> aToBConnections;  /**< Node topology mapping from A to B */
-    std::unordered_map<size_t, std::vector<size_t>> bToAConnections;  /**< Node topology mapping from B to A */
-    std::unordered_map<size_t, std::unordered_map<size_t, double>> aToBAreas; /**< Overlap area between tagA and tagB */
+    std::unordered_map<size_t, std::unordered_map<size_t, std::vector<Vec3>>> intersectionsAB; /**< Map from Mesh A tag -> Mesh B tag -> List of points defining the overlap */
+    std::unordered_map<size_t, std::unordered_map<size_t, std::vector<Vec3>>> intersectionsBA; /**< Map from Mesh B tag -> Mesh A tag -> List of points defining the overlap */
+    std::unordered_map<size_t, std::vector<size_t>> overlapsAB;                                /**< Map from Mesh A tag -> Vector of intersecting Mesh B tags */
+    std::unordered_map<size_t, std::vector<size_t>> overlapsBA;                                /**< Map from Mesh B tag -> Vector of intersecting Mesh A tags */
+    std::unordered_map<size_t, std::unordered_map<size_t, double>> overlapPercentages;         /**< Map from Mesh A tag -> Mesh B tag -> Area percentage of overlap (0.0 to 100.0) */
 };
 
 /**
@@ -164,7 +164,7 @@ struct ProjectionFrame {
     * @param[in] p - 3D Point coordinate.
     * @return Projected 2D point.
     */
-    CDT::V2d<double> to2D(const Vec3& p) const {
+    Vec2 to2D(const Vec3& p) const {
         Vec3 rel = p - origin;
         return {dot(rel, u), dot(rel, v)};
     }
@@ -174,7 +174,7 @@ struct ProjectionFrame {
     * @param[in] p - Local 2D point.
     * @return Unprojected 3D coordinate.
     */
-    Vec3 to3D(const CDT::V2d<double>& p) const {
+    Vec3 to3D(const Vec2& p) const {
         return origin + u * p.x + v * p.y;
     }
 };

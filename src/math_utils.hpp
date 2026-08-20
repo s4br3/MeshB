@@ -3,7 +3,6 @@
 #include "bvh.hpp"
 #include <cstdint>
 #include <unordered_map>
-#include <CDT.h>
 
 /**
 * @brief Formatted stream output operator for a 3D vector.
@@ -184,8 +183,8 @@ private:
     };
     double cellSize;
     double sqrEps;
-    std::unordered_map<Key, std::vector<CDT::VertInd>, KeyHash> grid;
-    std::vector<CDT::V2d<double>> points;
+    std::unordered_map<Key, std::vector<size_t>, KeyHash> grid;
+    std::vector<Vec2> points;
 
 public:
     /**
@@ -200,7 +199,7 @@ public:
     * @return Index of the existing or newly registered point.
     * @details To avoid missing grid-misaligned degeneracy, this checks the current grid square and its 8 neighbours
     */
-    CDT::VertInd getOrAdd(const CDT::V2d<double>& p) {
+    size_t getOrAdd(const Vec2& p) {
         int64_t cx = static_cast<int64_t>(std::floor(p.x / cellSize));
         int64_t cy = static_cast<int64_t>(std::floor(p.y / cellSize));
         for (int dx = -1; dx <= 1; ++dx) {
@@ -208,7 +207,7 @@ public:
                 Key neighborKey{cx + dx, cy + dy};
                 auto it = grid.find(neighborKey);
                 if (it != grid.end()) {
-                    for (CDT::VertInd idx : it->second) {
+                    for (size_t idx : it->second) {
                         double dx_p = points[idx].x - p.x;
                         double dy_p = points[idx].y - p.y;
                         if ((dx_p * dx_p + dy_p * dy_p) < sqrEps) {
@@ -218,7 +217,7 @@ public:
                 }
             }
         }
-        CDT::VertInd newIdx = static_cast<CDT::VertInd>(points.size());
+        size_t newIdx = static_cast<size_t>(points.size());
         points.push_back(p);
         grid[{cx, cy}].push_back(newIdx);
         return newIdx;
@@ -228,7 +227,7 @@ public:
     * @brief Returns unique 2D point positions stored in the spatial grid.
     * @return Reference to array of 2D points.
     */
-    const std::vector<CDT::V2d<double>>& getUniquePoints() const { return points; }
+    const std::vector<Vec2>& getUniquePoints() const { return points; }
 
     /**
     * @brief Resets and clears the 2D grid structure.

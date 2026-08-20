@@ -2,22 +2,28 @@ cmake_minimum_required(VERSION 3.14)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 include(FetchContent)
-set(CDT_USE_AS_COMPILED_LIBRARY OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(
-    CDT
-    GIT_REPOSITORY https://github.com/artem-ogre/CDT.git
-    GIT_TAG        763e826
-)
+
 FetchContent_Declare(
     OpenBEM
     GIT_REPOSITORY https://github.com/shash-sharma/OpenBEM.git
     GIT_TAG        0b06400
 )
+FetchContent_MakeAvailable(OpenBEM)
 
-FetchContent_MakeAvailable(CDT OpenBEM)
 find_package(OpenMP REQUIRED)
+
+# Manually locate the system-installed Gmsh headers and library
+find_path(GMSH_INCLUDE_DIR gmsh.h HINTS /usr/include /usr/local/include)
+find_library(GMSH_LIBRARY NAMES gmsh HINTS /usr/lib /usr/lib/x86_64-linux-gnu /usr/local/lib)
+
+if(NOT GMSH_INCLUDE_DIR OR NOT GMSH_LIBRARY)
+    message(FATAL_ERROR "Gmsh headers or library not found! Ensure libgmsh-dev is installed.")
+endif()
+
 set(SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
+
 add_library(meshb_core STATIC
     ${SOURCE_DIR}/bem_interop.cpp
     ${SOURCE_DIR}/boolean_ops.cpp
@@ -29,27 +35,37 @@ add_library(meshb_core STATIC
     ${SOURCE_DIR}/classify.cpp
     ${SOURCE_DIR}/triangulation.cpp
     ${SOURCE_DIR}/vector.cpp
+    ${SOURCE_DIR}/geom_2d.cpp
+    ${SOURCE_DIR}/geom_3d.cpp
 )
+
 target_include_directories(meshb_core PUBLIC
     ${SOURCE_DIR}
     ${OpenBEM_SOURCE_DIR}
     ${OpenBEM_SOURCE_DIR}/source
-    ${cdt_SOURCE_DIR}/CDT/include
+    ${GMSH_INCLUDE_DIR}
 )
+
 target_link_libraries(meshb_core PUBLIC
     OpenMP::OpenMP_CXX
+    ${GMSH_LIBRARY}
 )
+
 add_executable(main ${SOURCE_DIR}/main.cpp)
 target_link_libraries(main PRIVATE meshb_core)
+
 enable_testing()
 macro(add_mesh_test TEST_NAME TEST_FILE)
     add_executable(${TEST_NAME} test/${TEST_FILE})
     target_link_libraries(${TEST_NAME} PRIVATE meshb_core)
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
 endmacro()
+
 add_mesh_test(test_vector test_vector.cpp)
 add_mesh_test(test_math_utils test_math_utils.cpp)
 add_mesh_test(test_bvh test_bvh.cpp)
+add_mesh_test(test_geom_2d test_geom_2d.cpp)
+add_mesh_test(test_geom_3d test_geom_3d.cpp)
 add_mesh_test(test_mesh_clean test_mesh_clean.cpp)
 add_mesh_test(test_triangulation test_triangulation.cpp)
 add_mesh_test(test_classify test_classify.cpp)

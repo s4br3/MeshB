@@ -41,9 +41,9 @@ void test_spatial_grid_3d() {
 }
 void test_spatial_grid_2d() {
     SpatialGrid2D grid(0.1);
-    auto idx0 = grid.getOrAdd(CDT::V2d<double>{0.0, 0.0});
-    auto idx1 = grid.getOrAdd(CDT::V2d<double>{0.02, 0.02});
-    auto idx2 = grid.getOrAdd(CDT::V2d<double>{2.0, 2.0});
+    auto idx0 = grid.getOrAdd(Vec2{0.0, 0.0});
+    auto idx1 = grid.getOrAdd(Vec2{0.02, 0.02});
+    auto idx2 = grid.getOrAdd(Vec2{2.0, 2.0});
     assert(idx0 == idx1);
     assert(idx0 != idx2);
     assert(grid.getUniquePoints().size() == 2);

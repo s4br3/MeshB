@@ -1,13 +1,58 @@
 #include "boolean_ops.hpp"
 #include "bem_interop.hpp"
 #include "bvh_collisions.hpp"
+#include "geom_3d.hpp"
 #include "mesh_types.hpp"
 #include "triangulation.hpp"
 #include "classify.hpp"
 #include "mesh_clean.hpp"
+#include <unordered_set>
 #include <cstddef>
 #include <queue>
 #include <utility>
+void verifyMeshConformity(CollisionContext& ctx)
+{
+    auto checkMeshCuts = [&](const MeshData& mesh,
+                             const std::unordered_map<size_t, PolyLine>& NCcoords,
+                             const std::unordered_map<size_t, std::vector<PolyLine>>& Ccoords)
+        -> bool
+    {
+        SpatialGrid3D grid(ctx.eps);
+        for (const Vec3& node : mesh.nodes)
+            grid.getOrAdd(node);
+        const size_t meshPointCount = grid.getUniquePoints().size();
+        auto isNodeInMesh = [&](const Vec3& point) -> bool
+        {
+            const size_t index = grid.getOrAdd(point);
+            return index < meshPointCount;
+        };
+        auto checkPolyline = [&](const PolyLine& polyline) -> bool
+        {
+            for (const auto& [start, end] : polyline)
+            {
+                if (!isNodeInMesh(start) || !isNodeInMesh(end))
+                    return false;
+            }
+            return true;
+        };
+        for (const auto& [_, polyline] : NCcoords)
+        {
+            if (!checkPolyline(polyline))
+                return false;
+        }
+        for (const auto& [_, polylineList] : Ccoords)
+        {
+            for (const auto& polyline : polylineList)
+            {
+                if (!checkPolyline(polyline))
+                    return false;
+            }
+        }
+        return true;
+    };
+    ctx.conformal = checkMeshCuts(ctx.meshDataA, ctx.NCAcoords, ctx.CAcoords) &&
+           checkMeshCuts(ctx.meshDataB, ctx.NCBcoords, ctx.CBcoords);
+}
 std::vector<bool> getRemovalMask(const MeshData& mesh, const MeshData& targetMesh, const BVH& targetBVH, double eps, BoolOp op) {
     const size_t N = mesh.triangles.size();
     std::vector<bool> removeMask(N, false);
@@ -130,84 +175,105 @@ double computePolyLineArea(const PolyLine& poly) {
 Connection nonConformal(const bem::TriangleMesh<3>& A, const bem::TriangleMesh<3>& B) {
     MeshData meshA = extractMeshData(A);
     MeshData meshB = extractMeshData(B);
-    CollisionContext ctx = detectCollisions(meshA, meshB);
+    BVH bvhA = buildMeshBVH(meshA, 0.0);
+    BVH bvhB = buildMeshBVH(meshB, 0.0);
+    double eps = 1e-7;
+    if (!bvhA.nodes.empty() && !bvhB.nodes.empty()) {
+        eps = computeMeshesEpsilon(bvhA.nodes[0].getBbox(), bvhB.nodes[0].getBbox());
+    }
+    bvhA = buildMeshBVH(meshA, eps);
+    bvhB = buildMeshBVH(meshB, eps);
     Connection conn;
-    auto collectPoints = [](
-        const std::unordered_map<size_t, PolyLine>& NCcoords,
-        const std::unordered_map<size_t, std::vector<PolyLine>>& Ccoords,
-        const MeshData& srcMesh,
-        std::unordered_map<size_t, std::vector<Vec3>>& outIntersections)
-    {
-        for (const auto& [idx, poly] : NCcoords) {
-            size_t tag = srcMesh.tags[idx];
-            auto& pts = outIntersections[tag];
-            for (const auto& seg : poly) {
-                pts.push_back(seg.first);
-                pts.push_back(seg.second);
-            }
-        }
-        for (const auto& [idx, poly_list] : Ccoords) {
-            size_t tag = srcMesh.tags[idx];
-            auto& pts = outIntersections[tag];
-            for (const auto& poly : poly_list) {
-                for (const auto& seg : poly) {
-                    pts.push_back(seg.first);
-                    pts.push_back(seg.second);
+    const double areaEps = eps * eps;
+    std::vector<double> triAreasA(meshA.triangles.size(), 0.0);
+    for(size_t i = 0; i < meshA.triangles.size(); ++i) {
+        Vec3 v0 = meshA.nodes[meshA.triangles[i].v[0]];
+        Vec3 v1 = meshA.nodes[meshA.triangles[i].v[1]];
+        Vec3 v2 = meshA.nodes[meshA.triangles[i].v[2]];
+        Vec3 cr = cross(v1 - v0, v2 - v0);
+        triAreasA[i] = 0.5 * std::sqrt(dot(cr, cr));
+    }
+    std::vector<std::pair<size_t, size_t>> stack;
+    if (!bvhA.nodes.empty() && !bvhB.nodes.empty()) stack.emplace_back(0, 0);
+    std::unordered_map<size_t, std::unordered_map<size_t, std::vector<Vec3>>> rawPts;
+    std::unordered_map<size_t, std::unordered_map<size_t, double>> rawAreas;
+    while (!stack.empty()) {
+        auto [node1Idx, node2Idx] = stack.back();
+        stack.pop_back();
+        const Node& node1 = bvhA.nodes[node1Idx];
+        const Node& node2 = bvhB.nodes[node2Idx];
+        if (!boundingBoxOverlap(node1.getBbox(), node2.getBbox(), eps)) continue;
+        if (node1.isLeaf() && node2.isLeaf()) {
+            for (size_t i = node1.firstId; i < node1.firstId + node1.primCount; ++i) {
+                size_t prim1Id = bvhA.primIds[i];
+                for (size_t j = node2.firstId; j < node2.firstId + node2.primCount; ++j) {
+                    size_t prim2Id = bvhB.primIds[j];
+                    const TriVerts& t1 = meshA.triangles[prim1Id].getVertices(meshA.nodes);
+                    const TriVerts& t2 = meshB.triangles[prim2Id].getVertices(meshB.nodes);
+                    const Vec3& n1 = meshA.normals[prim1Id];
+                    const Vec3& n2 = meshB.normals[prim2Id];
+                    const Vec3& c1 = meshA.centres[prim1Id];
+                    const Vec3& c2 = meshB.centres[prim2Id];
+                    if (coplanar(n1, c1, n2, c2, eps)) {
+                        std::vector<Vec3> res = findIntersectionPointsC(t1, t2, n2, c2, eps);
+                        if (res.size() > 1) {
+                            rawPts[prim1Id][prim2Id].insert(rawPts[prim1Id][prim2Id].end(), res.begin(), res.end());
+                            PolyLine temp;
+                            for (size_t k = 0; k < res.size(); k++) {
+                                temp.push_back({res[k], res[(k + 1) % res.size()]});
+                            }
+                            rawAreas[prim1Id][prim2Id] += computePolyLineArea(temp);
+                        }
+                    } else {
+                        if (auto optResult = findIntersectionPointsNC(t1, n1, c1, t2, n2, c2, eps)) {
+                            auto [startPt, endPt] = *optResult;
+                            rawPts[prim1Id][prim2Id].push_back(startPt);
+                            rawPts[prim1Id][prim2Id].push_back(endPt);
+                        }
+                    }
                 }
             }
+            continue;
         }
-    };
-    collectPoints(ctx.NCAcoords, ctx.CAcoords, ctx.meshDataA, conn.meshAIntersections);
-    collectPoints(ctx.NCBcoords, ctx.CBcoords, ctx.meshDataB, conn.meshBIntersections);
-    for (auto& [tag, pts] : conn.meshAIntersections) {
-        SpatialGrid3D grid(ctx.eps);
-        for (const auto& pt : pts) {
-            grid.getOrAdd(pt);
+        if (node1.isLeaf()) {
+            stack.emplace_back(node1Idx, node2.firstId);
+            stack.emplace_back(node1Idx, node2.firstId + 1);
+        } else if (node2.isLeaf()) {
+            stack.emplace_back(node1.firstId, node2Idx);
+            stack.emplace_back(node1.firstId + 1, node2Idx);
+        } else {
+            stack.emplace_back(node1.firstId, node2.firstId);
+            stack.emplace_back(node1.firstId, node2.firstId + 1);
+            stack.emplace_back(node1.firstId + 1, node2.firstId);
+            stack.emplace_back(node1.firstId + 1, node2.firstId + 1);
         }
-        pts = std::move(grid.getUniquePoints());
     }
-    for (auto& [tag, pts] : conn.meshBIntersections) {
-        SpatialGrid3D grid(ctx.eps);
-        for (const auto& pt : pts) {
-            grid.getOrAdd(pt);
-        }
-        pts = std::move(grid.getUniquePoints());
-    }
-    std::unordered_map<size_t, std::unordered_set<size_t>> aToBSet;
-    std::unordered_map<size_t, std::unordered_set<size_t>> bToASet;
-    const double areaEps = ctx.eps * ctx.eps;
-    for (const auto& [idxA, targetTrisB] : ctx.Atris) {
-        size_t tagA = ctx.meshDataA.tags[idxA];
-        bool isCoplanar = (ctx.CAcoords.find(idxA) != ctx.CAcoords.end());
-        for (size_t idxB : targetTrisB) {
-            size_t tagB = ctx.meshDataB.tags[idxB];
-            if (isCoplanar) {
-                double area = 0.0;
-                const auto& polyList = ctx.CAcoords.at(idxA);
-                for (const auto& poly : polyList) {
-                    area += computePolyLineArea(poly);
-                }
-                if (area > areaEps) {
-                    conn.aToBAreas[tagA][tagB] += area;
-                    aToBSet[tagA].insert(tagB);
-                    bToASet[tagB].insert(tagA);
-                }
-            } else {
-                aToBSet[tagA].insert(tagB);
-                bToASet[tagB].insert(tagA);
+    for (auto& [idA, mapB] : rawPts) {
+        for (auto& [idB, pts] : mapB) {
+            conn.overlapsAB[idA].push_back(idB);
+            conn.overlapsBA[idB].push_back(idA);
+            SpatialGrid3D grid(eps);
+            for (const auto& pt : pts) grid.getOrAdd(pt);
+            conn.intersectionsAB[idA][idB] = grid.getUniquePoints();
+            conn.intersectionsBA[idB][idA] = grid.getUniquePoints();
+            double overlapArea = rawAreas[idA][idB];
+            double percentage = 0.0;
+            if (triAreasA[idA] > areaEps && overlapArea > areaEps) {
+                percentage = (overlapArea / triAreasA[idA]) * 100.0;
+                if (percentage > 100.0) percentage = 100.0;
             }
+            conn.overlapPercentages[idA][idB] = percentage;
         }
-    }
-    for (const auto& [tagA, bSet] : aToBSet) {
-        conn.aToBConnections[tagA].assign(bSet.begin(), bSet.end());
-    }
-    for (const auto& [tagB, aSet] : bToASet) {
-        conn.bToAConnections[tagB].assign(aSet.begin(), aSet.end());
     }
     return conn;
 }
 CollisionContext collideAndCut(MeshData& meshA, MeshData& meshB, bool removeTouchingSurfaces) {
     CollisionContext ctx = detectCollisions(meshA, meshB);
+    verifyMeshConformity(ctx);
+    if (ctx.conformal){
+        std::cout << "Meshes are already conformal: skipping cutting stage\n";
+        return ctx;
+    }
     MeshData newMeshA = cutMesh(ctx.meshDataA, ctx.NCAcoords, ctx.CAcoords, ctx.eps, removeTouchingSurfaces);
     MeshData newMeshB = cutMesh(ctx.meshDataB, ctx.NCBcoords, ctx.CBcoords, ctx.eps, removeTouchingSurfaces);
     ctx.meshDataA = std::move(newMeshA);

@@ -13,7 +13,7 @@ Credits:
 
 Shashwat Sharma: Supervisor for the project and great advisor for when I had no clue which way to go.
 
-Artem Amirkhanov (Artem-Ogre on github): Constrained Delaunay Triangulation library that works wonderfully.
+Artem Amirkhanov (Artem-Ogre on github): Constrained Delaunay Triangulation library that works wonderfully, though it has now been removed (either replaced with Gmsh or my own CDT solver for fewer dependencies).
 
 Arsène Pérard-Gayot (madmann91): Bounding Volume Hierarchy library, which I removed in the end for the sake of minimising dependencies, but this was still a very nice library to work with and helped keep my bearings for a lot of the early programming process.
 
