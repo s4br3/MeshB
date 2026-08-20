@@ -13,13 +13,9 @@ Credits:
 
 Shashwat Sharma: Supervisor for the project and great advisor for when I had no clue which way to go.
 
-Artem Amirkhanov (Artem-Ogre on github): Constrained Delaunay Triangulation library that works wonderfully, though it has now been removed (replaced with Gmsh's CDT solver for fewer dependencies).
-
-Arsène Pérard-Gayot (madmann91): Bounding Volume Hierarchy library, which I removed in the end for the sake of minimising dependencies, but this was still a very nice library to work with and helped keep my bearings for a lot of the early programming process.
-
 Blender: Wonderful 3D model visualisation tool. I ask that you donate the cost of a coffee once in a while. I have found much value from their work and have done accordingly.
 
-Gmsh: Solid 3D model visualisation tool. Sorry, I'm not as emotionally attached to this software, as useful as it has been through this process. There's also no foundation you can give money to to support the development, which left me feeling a bit miffed (I did find great use from this app).
+Gmsh: Solid 3D model visualisation tool. Sorry, I'm not as emotionally attached to this software, as useful as it has been through this process. There's also no foundation you can give money to to support the development, which left me feeling a bit miffed (I did find great use from this app). The API, on the other hand, is superb: it's how this system cuts triangles.
 
 My mom: Excellent audience when I'm explaining ideas I'm trying to wrangle for this program. Asked great questions as well, and was very supportive.
 
