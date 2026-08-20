@@ -5,7 +5,7 @@ If your mesh has lots of (>4) n-gons, please wait a few hours lol. This system n
 
 Additionally, any program can directly call the functions from boolean_ops.hpp, whether on Shaswat Sharma's OpenBEM's TriangleMesh<3> struct or my own MeshData which holds vector(Vec3(double)) nodes and vector (Triangle(array(size_t, 3))) triangles, where the triangles are made up of indices of the associated nodes. You can also call individual functions directly from any header if you want to operate the pipeline your own way.
 
-Build: NO requirements whatsoever. The only libraries used are Shashwat Sharma's OpenBEM finite-element method solver (for TriangleMesh<3> compatibility) and Artem Ogre's CDT library, which is fetched directly.
+Build: Gmsh must be installed on your system. Besides this, the only library used is Shashwat Sharma's OpenBEM finite-element method solver (for TriangleMesh<3> compatibility), which is fetched by Cmake.
 
 Contributing: Unlikely anybody will care about this library, but if you happen to be an odd manner of human, you can just send in pull requests, and I'll see what I can do.
 
@@ -13,7 +13,7 @@ Credits:
 
 Shashwat Sharma: Supervisor for the project and great advisor for when I had no clue which way to go.
 
-Artem Amirkhanov (Artem-Ogre on github): Constrained Delaunay Triangulation library that works wonderfully, though it has now been removed (either replaced with Gmsh or my own CDT solver for fewer dependencies).
+Artem Amirkhanov (Artem-Ogre on github): Constrained Delaunay Triangulation library that works wonderfully, though it has now been removed (replaced with Gmsh's CDT solver for fewer dependencies).
 
 Arsène Pérard-Gayot (madmann91): Bounding Volume Hierarchy library, which I removed in the end for the sake of minimising dependencies, but this was still a very nice library to work with and helped keep my bearings for a lot of the early programming process.
 
