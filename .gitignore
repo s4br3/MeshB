@@ -71,3 +71,6 @@ Testing/
 # vscode
 .vscode/
 *.mtl
+
+# releases
+dist/

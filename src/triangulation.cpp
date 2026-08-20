@@ -244,13 +244,13 @@ void cutTriangles(
     const ProjectionFrame& frame, SpatialGrid3D& nodeGrid,
     const double eps, std::vector<Triangle>& outTriangles)
 {
-    std::unordered_map<std::pair<size_t, size_t>, size_t> edgeCounts;
-    std::unordered_map<std::pair<size_t, size_t>, std::pair<Vec3, Vec3>> edgeGeom;
+    std::unordered_map<EdgeKey, size_t> edgeCounts;
+    std::unordered_map<EdgeKey, std::pair<Vec3, Vec3>> edgeGeom;
     for (const Triangle& tri : tris) {
         for (int i = 0; i < 3; ++i) {
             size_t u = tri.v[i];
             size_t v = tri.v[(i + 1) % 3];
-            std::pair<size_t, size_t> key = makeEdgeKey(u, v);
+            EdgeKey key = makeEdgeKey(u, v);
             edgeCounts[key]++;
             if (edgeCounts[key] == 1) {
                 edgeGeom[key] = {nodes[u], nodes[v]};
@@ -258,10 +258,17 @@ void cutTriangles(
         }
     }
     PolyLine segs;
-    for (const auto& [key, count] : edgeCounts) {
-        segs.push_back(edgeGeom[key]);
+    PolyLine allCuts = cuts;
+    if (!tris.empty()) {
+        const Triangle& originalFace = tris[0];
+        for (int i = 0; i < 3; ++i) {
+            segs.push_back({nodes[originalFace.v[i]], nodes[originalFace.v[(i + 1) % 3]]});
+        }
     }
-    triangulate(segs, cuts, frame, nodeGrid, eps, outTriangles);
+    for (const auto& [key, count] : edgeCounts) {
+        allCuts.push_back(edgeGeom[key]);
+    }
+    triangulate(segs, allCuts, frame, nodeGrid, eps, outTriangles);
 }
 MeshData cutMesh(
     const MeshData& meshData,

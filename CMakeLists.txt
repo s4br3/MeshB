@@ -14,9 +14,8 @@ FetchContent_MakeAvailable(OpenBEM)
 
 find_package(OpenMP REQUIRED)
 
-# Manually locate the system-installed Gmsh headers and library
-find_path(GMSH_INCLUDE_DIR gmsh.h HINTS /usr/include /usr/local/include)
-find_library(GMSH_LIBRARY NAMES gmsh HINTS /usr/lib /usr/lib/x86_64-linux-gnu /usr/local/lib)
+find_path(GMSH_INCLUDE_DIR NAMES gmsh.h)
+find_library(GMSH_LIBRARY NAMES gmsh)
 
 if(NOT GMSH_INCLUDE_DIR OR NOT GMSH_LIBRARY)
     message(FATAL_ERROR "Gmsh headers or library not found! Ensure libgmsh-dev is installed.")
