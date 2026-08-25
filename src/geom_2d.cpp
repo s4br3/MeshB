@@ -16,17 +16,17 @@ ProjectionFrame computeSharedFrame(const Vec3& normal, const Vec3& origin) {
     return frame;
 }
 void intersect2DAllPoints(
-    const Vec2& A, const Vec2& B,
-    const Vec2& C, const Vec2& D,
-    SpatialGrid2D& grid,
+    const Edge& e1, const Edge& e2, SpatialGrid2D& grid,
     std::vector<size_t>& outs,
     double eps)
 {
     outs.clear();
-    double x12 = B.x - A.x, y12 = B.y - A.y;
-    double x34 = D.x - C.x, y34 = D.y - C.y;
-    double x13 = C.x - A.x, y13 = C.y - A.y;
-    double denom = x12 * y34 - y12 * x34;
+    Vec2 v12 = e1.second - e1.first;
+    Vec2 v34 = e2.second - e2.first;
+    Vec2 v13 = e2.first - e1.first;
+    double denom = cross2D(v12, v34);
+    double cross1334 = cross2D(v13, v34);
+    double cross1312 = cross2D(v13, v12);
     auto addIdUnique = [&](size_t id) {
         for (auto existing : outs) {
             if (existing == id) return;
@@ -34,47 +34,43 @@ void intersect2DAllPoints(
         outs.push_back(id);
     };
     if (std::abs(denom) >= eps) {
-        double t = (x13 * y34 - y13 * x34) / denom;
-        double u = (x13 * y12 - y13 * x12) / denom;
+        double t = cross1334 / denom;
+        double u = cross1312 / denom;
         if (t >= -eps && t <= 1.0 + eps && u >= -eps && u <= 1.0 + eps) {
             if (std::abs(t) <= eps) {
-                addIdUnique(grid.getOrAdd(A));
+                addIdUnique(grid.getOrAdd(e1.first));
             } else if (std::abs(t - 1.0) <= eps) {
-                addIdUnique(grid.getOrAdd(B));
+                addIdUnique(grid.getOrAdd(e1.second));
             }
             else if (std::abs(u) <= eps) {
-                addIdUnique(grid.getOrAdd(C));
+                addIdUnique(grid.getOrAdd(e2.first));
             } else if (std::abs(u - 1.0) <= eps) {
-                addIdUnique(grid.getOrAdd(D));
+                addIdUnique(grid.getOrAdd(e2.second));
             }
             else {
-                addIdUnique(grid.getOrAdd( {A.x + t * x12, A.y + t * y12} ));
+                addIdUnique(grid.getOrAdd(e1.first + v12 * t));
             }
         }
         return;
     }
-    if (std::abs(x13 * y12 - y13 * x12) > eps) return;
-    if (pointOnSegment(C, A, B, eps)) addIdUnique(grid.getOrAdd(C));
-    if (pointOnSegment(D, A, B, eps)) addIdUnique(grid.getOrAdd(D));
-    if (pointOnSegment(A, C, D, eps)) addIdUnique(grid.getOrAdd(A));
-    if (pointOnSegment(B, C, D, eps)) addIdUnique(grid.getOrAdd(B));
+    if (std::abs(cross1312) > eps) return;
+    if (pointOnSegment(e2.first, e1, eps)) addIdUnique(grid.getOrAdd(e2.first));
+    if (pointOnSegment(e2.second, e1, eps)) addIdUnique(grid.getOrAdd(e2.second));
+    if (pointOnSegment(e1.first, e2, eps)) addIdUnique(grid.getOrAdd(e1.first));
+    if (pointOnSegment(e1.second, e2, eps)) addIdUnique(grid.getOrAdd(e1.second));
 }
-bool pointOnSegment(
-    const Vec2& P,
-    const Vec2& A,
-    const Vec2& B,
-    double eps)
+bool pointOnSegment(const Vec2& p, const Edge& e, double eps)
 {
-    double vx = B.x - A.x, vy = B.y - A.y;
-    double wx = P.x - A.x, wy = P.y - A.y;
-    double cross = vx * wy - vy * wx;
+    Vec2 v = e.second - e.first;
+    Vec2 w = p - e.first;
+    double cross = cross2D(v, w);
     if (std::abs(cross) > eps) return false;
     auto inRange = [eps](double v, double a, double b) {
         return v >= std::min(a,b) - eps && v <= std::max(a,b) + eps;
     };
-    return inRange(P.x, A.x, B.x) && inRange(P.y, A.y, B.y);
+    return inRange(p.x, e.first.x, e.second.x) && inRange(p.y, e.first.y, e.second.y);
 }
-bool isPointInsidePolygon(const Vec2& pt, const std::vector<std::pair<Vec2, Vec2>>& edges) {
+bool isPointInsidePolygon(const Vec2& pt, const std::vector<Edge>& edges) {
     bool inside = false;
     for (const auto& edge : edges) {
         const Vec2& v1 = edge.first;

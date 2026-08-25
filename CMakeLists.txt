@@ -14,14 +14,6 @@ FetchContent_MakeAvailable(OpenBEM)
 
 find_package(OpenMP REQUIRED)
 
-# Manually locate the system-installed Gmsh headers and library
-find_path(GMSH_INCLUDE_DIR gmsh.h HINTS /usr/include /usr/local/include)
-find_library(GMSH_LIBRARY NAMES gmsh HINTS /usr/lib /usr/lib/x86_64-linux-gnu /usr/local/lib)
-
-if(NOT GMSH_INCLUDE_DIR OR NOT GMSH_LIBRARY)
-    message(FATAL_ERROR "Gmsh headers or library not found! Ensure libgmsh-dev is installed.")
-endif()
-
 set(SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
 add_library(meshb_core STATIC
@@ -35,6 +27,7 @@ add_library(meshb_core STATIC
     ${SOURCE_DIR}/classify.cpp
     ${SOURCE_DIR}/triangulation.cpp
     ${SOURCE_DIR}/vector.cpp
+    ${SOURCE_DIR}/cdt.cpp
     ${SOURCE_DIR}/geom_2d.cpp
     ${SOURCE_DIR}/geom_3d.cpp
 )
@@ -43,12 +36,10 @@ target_include_directories(meshb_core PUBLIC
     ${SOURCE_DIR}
     ${OpenBEM_SOURCE_DIR}
     ${OpenBEM_SOURCE_DIR}/source
-    ${GMSH_INCLUDE_DIR}
 )
 
 target_link_libraries(meshb_core PUBLIC
     OpenMP::OpenMP_CXX
-    ${GMSH_LIBRARY}
 )
 
 add_executable(main ${SOURCE_DIR}/main.cpp)

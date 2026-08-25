@@ -94,7 +94,7 @@ double evaluateGWN(const Vec3& p, const MeshData& mesh, const BVH& bvh, const st
         Vec3 diag = node.boundingBox.max - node.boundingBox.min;
         double size = std::sqrt(dot(diag, diag));
         Vec3 r = data.center - p;
-        double dist = std::sqrt(dot(r, r));
+        double dist = r.length();
         if (size / dist < 0.5 && !node.isLeaf()) {
             double r3 = dist * dist * dist;
             if (r3 > 1e-12) {

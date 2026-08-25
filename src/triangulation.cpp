@@ -1,14 +1,14 @@
 #include "triangulation.hpp"
 #include "bvh.hpp"
+#include "cdt.hpp"
 #include "geom_3d.hpp"
 #include "mesh_clean.hpp"
 #include <cmath>
 #include <unordered_map>
 #include <unordered_set>
-#include <gmsh.h>
 void buildSubdividedEdges(
     const std::vector<Vec2>& initialPts,
-    const std::vector<std::pair<size_t, size_t>>& segs,
+    const std::vector<EdgeKey>& segs,
     std::vector<Vec2>& outUniquePts,
     std::vector<EdgeKey>& outCDTEdges,
     double eps)
@@ -20,7 +20,7 @@ void buildSubdividedEdges(
     std::vector<BBox> boxes;
     std::vector<Vec3> centres;
     std::vector<std::vector<size_t>> pointsOnSegments(segs.size());
-    std::vector<std::pair<size_t, size_t>> stack;
+    std::vector<EdgeKey> stack;
     for (size_t i = 0; i < segs.size(); ++i) {
         Vec2 A = initialPts[segs[i].first];
         Vec2 B = initialPts[segs[i].second];
@@ -44,10 +44,10 @@ void buildSubdividedEdges(
                 for(size_t j = node2.firstId; j < node2.firstId + node2.primCount; j++){
                     size_t prim2Id = bvh2D.primIds[j];
                     if (prim1Id >= prim2Id) continue;
-                    Vec2 A = initialPts[segs[prim1Id].first], B = initialPts[segs[prim1Id].second];
-                    Vec2 C = initialPts[segs[prim2Id].first], D = initialPts[segs[prim2Id].second];
+                    Edge e1 = {initialPts[segs[prim1Id].first], initialPts[segs[prim1Id].second]};
+                    Edge e2 = {initialPts[segs[prim2Id].first], initialPts[segs[prim2Id].second]};
                     std::vector<size_t> outs;
-                    intersect2DAllPoints(A, B, C, D, grid, outs, eps);
+                    intersect2DAllPoints(e1, e2, grid, outs, eps);
                     pointsOnSegments[prim1Id].insert(pointsOnSegments[prim1Id].end(), outs.begin(), outs.end());
                     pointsOnSegments[prim2Id].insert(pointsOnSegments[prim2Id].end(), outs.begin(), outs.end());
                 }
@@ -113,8 +113,8 @@ void triangulate(
 {
     if (polygonSegments.empty() && cuts.empty()) return;
     std::vector<Vec2> initialPts;
-    std::vector<std::pair<size_t, size_t>> segs;
-    std::vector<std::pair<Vec2, Vec2>> boundary2D;
+    std::vector<EdgeKey> segs;
+    std::vector<Edge> boundary2D;
     for (const std::pair<Vec3, Vec3>& seg : polygonSegments) {
         size_t idx1 = nodeGrid.getOrAdd(seg.first);
         size_t idx2 = nodeGrid.getOrAdd(seg.second);
@@ -123,7 +123,7 @@ void triangulate(
         auto p2 = frame.to2D(seg.second);
         boundary2D.push_back({ {p1.x, p1.y}, {p2.x, p2.y} });
     }
-    std::unordered_set<std::pair<size_t, size_t>> cutEdge;
+    std::unordered_set<EdgeKey> cutEdge;
     for (const std::pair<Vec3, Vec3>& cut : cuts) {
         size_t idx1 = nodeGrid.getOrAdd(cut.first);
         size_t idx2 = nodeGrid.getOrAdd(cut.second);
@@ -131,7 +131,7 @@ void triangulate(
             cutEdge.insert(makeEdgeKey(idx1, idx2));
         }
     }
-    for (const std::pair<size_t, size_t>& key : cutEdge) {
+    for (const EdgeKey& key : cutEdge) {
         segs.push_back(key);
     }
     for (const Vec3& vec : nodeGrid.getUniquePoints()) {
@@ -140,7 +140,7 @@ void triangulate(
     std::vector<Vec2> uniquePts;
     std::vector<EdgeKey> CDTEdges;
     buildSubdividedEdges(initialPts, segs, uniquePts, CDTEdges, eps);
-    std::unordered_set<std::pair<size_t, size_t>> cleanEdges;
+    std::unordered_set<EdgeKey> cleanEdges;
     std::vector<EdgeKey> deduplicatedCDTEdges;
     for (const EdgeKey& edge : CDTEdges) {
         size_t v1 = edge.first;
@@ -152,90 +152,20 @@ void triangulate(
     }
     CDTEdges = std::move(deduplicatedCDTEdges);
     if (uniquePts.size() < 3) return;
-    if (!gmsh::isInitialized()) {
-        gmsh::initialize();
-        gmsh::option::setNumber("General.Terminal", 0); 
-        gmsh::option::setNumber("General.NumThreads", 1);
-    }
-    gmsh::clear();
-    gmsh::model::add("cdt_patch");
-    double minX = INFINITY, minY = INFINITY, maxX = -INFINITY, maxY = -INFINITY;
-    for (const auto& pt : uniquePts) {
-        if (pt.x < minX) minX = pt.x;
-        if (pt.y < minY) minY = pt.y;
-        if (pt.x > maxX) maxX = pt.x;
-        if (pt.y > maxY) maxY = pt.y;
-    }
-    double pad = std::max(eps * 10.0, std::max(maxX - minX, maxY - minY) * 0.1);
-    if (pad <= 1e-9) pad = 1.0;
-    minX -= pad; minY -= pad;
-    maxX += pad; maxY += pad;
-    int bp1 = gmsh::model::geo::addPoint(minX, minY, 0);
-    int bp2 = gmsh::model::geo::addPoint(maxX, minY, 0);
-    int bp3 = gmsh::model::geo::addPoint(maxX, maxY, 0);
-    int bp4 = gmsh::model::geo::addPoint(minX, maxY, 0);
-    int cl = gmsh::model::geo::addCurveLoop({
-        gmsh::model::geo::addLine(bp1, bp2),
-        gmsh::model::geo::addLine(bp2, bp3),
-        gmsh::model::geo::addLine(bp3, bp4),
-        gmsh::model::geo::addLine(bp4, bp1)
-    });
-    int surf = gmsh::model::geo::addPlaneSurface({cl});
-    std::unordered_map<std::size_t, size_t> gmshTagToLocalIdx;
-    std::vector<int> gmshPtTags(uniquePts.size());
-    for (size_t i = 0; i < uniquePts.size(); ++i) {
-        int tag = gmsh::model::geo::addPoint(uniquePts[i].x, uniquePts[i].y, 0);
-        gmshPtTags[i] = tag;
-        gmshTagToLocalIdx[tag] = i; 
-    }
-    std::vector<int> gmshLineTags;
-    for (const EdgeKey& edge : CDTEdges) {
-        gmshLineTags.push_back(gmsh::model::geo::addLine(gmshPtTags[edge.first], gmshPtTags[edge.second]));
-    }
-    gmsh::model::geo::synchronize();
-    gmsh::model::mesh::embed(0, gmshPtTags, 2, surf);
-    if (!gmshLineTags.empty()) {
-        gmsh::model::mesh::embed(1, gmshLineTags, 2, surf);
-    }
-    gmsh::option::setNumber("Mesh.Algorithm", 5); 
-    gmsh::option::setNumber("Mesh.MeshSizeMin", 1e22);
-    gmsh::option::setNumber("Mesh.MeshSizeMax", 1e22);
-    gmsh::option::setNumber("Mesh.MeshSizeExtendFromBoundary", 0);
-    gmsh::option::setNumber("Mesh.MeshSizeFromPoints", 0);
-    gmsh::option::setNumber("Mesh.MeshSizeFromCurvature", 0);
-    gmsh::model::mesh::generate(2);
-    std::vector<int> elementTypes;
-    std::vector<std::vector<std::size_t>> elementTags, nodeTags;
-    gmsh::model::mesh::getElements(elementTypes, elementTags, nodeTags, 2, surf);
-    for (size_t i = 0; i < elementTypes.size(); ++i) {
-        if (elementTypes[i] == 2) { 
-            const auto& nTags = nodeTags[i];
-            for (size_t t = 0; t < nTags.size() / 3; ++t) {
-                std::size_t n1 = nTags[t * 3 + 0];
-                std::size_t n2 = nTags[t * 3 + 1];
-                std::size_t n3 = nTags[t * 3 + 2];
-                if (gmshTagToLocalIdx.find(n1) == gmshTagToLocalIdx.end() ||
-                    gmshTagToLocalIdx.find(n2) == gmshTagToLocalIdx.end() ||
-                    gmshTagToLocalIdx.find(n3) == gmshTagToLocalIdx.end()) {
-                    continue;
-                }
-                size_t idx1 = gmshTagToLocalIdx[n1];
-                size_t idx2 = gmshTagToLocalIdx[n2];
-                size_t idx3 = gmshTagToLocalIdx[n3];
-                Vec2 centroid = {
-                    (uniquePts[idx1].x + uniquePts[idx2].x + uniquePts[idx3].x) / 3.0,
-                    (uniquePts[idx1].y + uniquePts[idx2].y + uniquePts[idx3].y) / 3.0
-                };
-                if (isPointInsidePolygon(centroid, boundary2D)) {
-                    Triangle newTri;
-                    newTri.v = {
-                        nodeGrid.getOrAdd(frame.to3D(uniquePts[idx1])),
-                        nodeGrid.getOrAdd(frame.to3D(uniquePts[idx2])),
-                        nodeGrid.getOrAdd(frame.to3D(uniquePts[idx3]))
-                    };
-                    outTriangles.push_back(newTri);
-                }
-            }
+    std::vector<TriangleCDT> cdtTriangles = calculateCDT(uniquePts, CDTEdges, eps);
+    for (const auto& tri : cdtTriangles) {
+        Vec2 centroid = {
+            (tri.p1.x + tri.p2.x + tri.p3.x) / 3.0,
+            (tri.p1.y + tri.p2.y + tri.p3.y) / 3.0
+        };
+        if (isPointInsidePolygon(centroid, boundary2D)) {
+            Triangle newTri;
+            newTri.v = {
+                nodeGrid.getOrAdd(frame.to3D(tri.p1)),
+                nodeGrid.getOrAdd(frame.to3D(tri.p2)),
+                nodeGrid.getOrAdd(frame.to3D(tri.p3))
+            };
+            outTriangles.push_back(newTri);
         }
     }
 }
@@ -244,13 +174,13 @@ void cutTriangles(
     const ProjectionFrame& frame, SpatialGrid3D& nodeGrid,
     const double eps, std::vector<Triangle>& outTriangles)
 {
-    std::unordered_map<std::pair<size_t, size_t>, size_t> edgeCounts;
-    std::unordered_map<std::pair<size_t, size_t>, std::pair<Vec3, Vec3>> edgeGeom;
+    std::unordered_map<EdgeKey, size_t> edgeCounts;
+    std::unordered_map<EdgeKey, std::pair<Vec3, Vec3>> edgeGeom;
     for (const Triangle& tri : tris) {
         for (int i = 0; i < 3; ++i) {
             size_t u = tri.v[i];
             size_t v = tri.v[(i + 1) % 3];
-            std::pair<size_t, size_t> key = makeEdgeKey(u, v);
+            EdgeKey key = makeEdgeKey(u, v);
             edgeCounts[key]++;
             if (edgeCounts[key] == 1) {
                 edgeGeom[key] = {nodes[u], nodes[v]};
@@ -258,10 +188,17 @@ void cutTriangles(
         }
     }
     PolyLine segs;
-    for (const auto& [key, count] : edgeCounts) {
-        segs.push_back(edgeGeom[key]);
+    PolyLine allCuts = cuts;
+    if (!tris.empty()) {
+        const Triangle& originalFace = tris[0];
+        for (int i = 0; i < 3; ++i) {
+            segs.push_back({nodes[originalFace.v[i]], nodes[originalFace.v[(i + 1) % 3]]});
+        }
     }
-    triangulate(segs, cuts, frame, nodeGrid, eps, outTriangles);
+    for (const auto& [key, count] : edgeCounts) {
+        allCuts.push_back(edgeGeom[key]);
+    }
+    triangulate(segs, allCuts, frame, nodeGrid, eps, outTriangles);
 }
 MeshData cutMesh(
     const MeshData& meshData,

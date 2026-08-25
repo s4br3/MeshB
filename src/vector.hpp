@@ -149,10 +149,7 @@ struct Vec2 {
         r.y = y / rhs;
         return r;
     }
-    bool operator==(const Vec2& rhs) const {
-        return x == rhs.x && y == rhs.y;
-    }
-    bool equals(const Vec2& rhs, double eps){
+    bool equals(const Vec2& rhs, double eps) const{
         return 
             std::abs(x - rhs.x) < eps &&
             std::abs(y - rhs.y) < eps;
@@ -162,6 +159,7 @@ struct Vec2 {
 std::ostream& operator<<(std::ostream& os, const Vec3& v);
 std::ostream& operator<<(std::ostream& os, const Vec2& v);
 double dot(const Vec3& lhs, const Vec3& rhs);
+double dot(const Vec2& lhs, const Vec2& rhs);
 Vec3 cross(const Vec3& lhs, const Vec3& rhs);
 double cross2D(const Vec2& lhs, const Vec2& rhs);
 int getLargestAxis(const Vec3& v);

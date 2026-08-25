@@ -1,28 +1,75 @@
-MeshB: A boolean operations solver that hopes to match up to predicate-based counterparts with floating-point arithmetic, built for researchers trying to model electromagnetic flow (though it can work for others just as well).
+# MeshB
 
-Usage: Your mesh file inputs, the folder where the mesh(es) should be outputted and the operation to be carried out.
-If your mesh has lots of (>4) n-gons, please wait a few hours lol. This system needs a triangle mesh, so it forces triangulation through a bulky subsystem that I have yet to optimise. If your mesh is made almost exclusively of tris or quads (less than a thousand (>4) n-gons) then you have no worries. It'll work in 30 seconds tops.
+**MeshB** is a fast boolean operations solver using floating-point arithmetic designed for electromagnetic flow modeling (and general mesh applications).
 
-Additionally, any program can directly call the functions from boolean_ops.hpp, whether on Shaswat Sharma's OpenBEM's TriangleMesh<3> struct or my own MeshData which holds vector(Vec3(double)) nodes and vector (Triangle(array(size_t, 3))) triangles, where the triangles are made up of indices of the associated nodes. You can also call individual functions directly from any header if you want to operate the pipeline your own way.
+---
 
-Build: NO requirements whatsoever. The only libraries used are Shashwat Sharma's OpenBEM finite-element method solver (for TriangleMesh<3> compatibility) and Artem Ogre's CDT library, which is fetched directly.
+## Prerequisites & Dependencies
+* **CMake**: 3.14 or newer
+* **Compiler**: C++20-compatible
+* **Tools & Libraries**: Git and OpenMP
+* **Network**: An active internet connection during the first configuration (OpenBEM is automatically fetched from GitHub)
 
-Contributing: Unlikely anybody will care about this library, but if you happen to be an odd manner of human, you can just send in pull requests, and I'll see what I can do.
+---
 
-Credits:
+## Build Instructions
 
-Shashwat Sharma: Supervisor for the project and great advisor for when I had no clue which way to go.
+Run the following commands from the repository root:
 
-Artem Amirkhanov (Artem-Ogre on github): Constrained Delaunay Triangulation library that works wonderfully, though it has now been removed (either replaced with Gmsh or my own CDT solver for fewer dependencies).
+```bash
+cmake -S . -B build
+cmake --build build
+```
 
-Arsène Pérard-Gayot (madmann91): Bounding Volume Hierarchy library, which I removed in the end for the sake of minimising dependencies, but this was still a very nice library to work with and helped keep my bearings for a lot of the early programming process.
+Run the generated executable:
+```bash
+./build/main
+```
 
-Blender: Wonderful 3D model visualisation tool. I ask that you donate the cost of a coffee once in a while. I have found much value from their work and have done accordingly.
+---
 
-Gmsh: Solid 3D model visualisation tool. Sorry, I'm not as emotionally attached to this software, as useful as it has been through this process. There's also no foundation you can give money to to support the development, which left me feeling a bit miffed (I did find great use from this app).
+## Testing
+From root, run ```./build/(executable)``` where the executable is any of
+```
+test_bvh
+test_classify
+test_geom_2d
+test_geom_3d
+test_math_utils
+test_mesh_clean
+test_raycast
+test_triangulation
+test_vector
+```
 
-My mom: Excellent audience when I'm explaining ideas I'm trying to wrangle for this program. Asked great questions as well, and was very supportive.
+---
 
-S4BRE: Myself. This project was heaps of fun and I am stoked to have brought it this far.
+## Usage & Performance
 
-If you have any questions or difficulties with the software, feel free to post as such in the issues section of this repo. Enjoy your nicely triangulated meshes y'all.
+### Inputs
+Provide your mesh file inputs, the output folder destination, and the desired boolean operation.
+
+### Programmatic API
+You can call functions directly from `boolean_ops.hpp` or individual headers:
+* Compatible with **Shashwat Sharma's OpenBEM** `TriangleMesh<3>` struct.
+* Compatible with MeshB's native `MeshData` struct (holds `vector<Vec3<double>>` nodes and `vector<Triangle<array<size_t, 3>>>` triangles).
+
+### Performance Note on Triangulation
+MeshB requires a triangle mesh and forces triangulation via an internal subsystem:
+* **Standard Meshes (mostly tris/quads, < 1,000 N-gons with > 4 vertices)**: Executes in **30 seconds or less**.
+* **Heavy N-Gon Meshes (lots of N-gons with > 4 vertices)**: The current unoptimized triangulation subsystem can take **a few hours**.
+
+---
+
+## Contributing & Support
+* **Contributions**: Pull requests welcome. Feel free to send one over.
+* **Questions / Issues**: If you run into any difficulties or have questions, please post them in the **Issues** section of the repository.
+
+---
+
+## Credits & Acknowledgments
+* **S4BRE**: Creator and lead developer.
+* **Shashwat Sharma**: Supervisor and project advisor.
+* **Gmsh**: Excellent API used to cut triangles, and a solid 3D model visualization tool.
+* **Blender**: Wonderful 3D model visualization tool.
+* **My Mom**: Great audience, asked lots of questions, and was really supportive. She helped wrangle complex ideas.
