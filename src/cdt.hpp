@@ -53,6 +53,13 @@ struct TriangleCDT {
 std::vector<TriangleCDT> calculateCDT(const std::vector<Vec2>& points, const std::vector<EdgeKey>& edges, double eps);
 
 /**
+* @brief Performs Delaunay Triangulation on a set of 2D points and inserts Steiner points.
+* @param[in] points Vector of unique 2D points.
+* @param[in] eps Geometric tolerance.
+* @return A vector of triangulated faces.
+*/
+std::vector<TriangleCDT> calculateDelaunay(std::vector<Vec2>& points, double eps);
+/**
 * @brief Checks if a 2D point lies within the boundaries of a triangle.
 * @param[in] p The 2D point to test.
 * @param[in] tri The triangle to test against.

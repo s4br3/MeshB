@@ -25,11 +25,13 @@ void buildSubdividedEdges(
 * @param[in] eps - Spatial tolerance threshold.
 * @param[in,out] nodeGrid - Spatial 3D lookup grid for vertex merging.
 * @param[out] outTriangles - Output buffer for newly retriangulated 3D Triangle elements.
+* @param[in] constrained - Context boolean for insertion of Steiner points.
 */
 void triangulate(
     const PolyLine& polygonSegments, const PolyLine& cuts,
     const ProjectionFrame& frame, SpatialGrid3D& nodeGrid,
-    double eps, std::vector<Triangle>& outTriangles);
+    double eps, std::vector<Triangle>& outTriangles,
+    const bool constrained = true);
 
 /**
 * @brief Subdivides and remeshes a list of triangles along intersection polylines.

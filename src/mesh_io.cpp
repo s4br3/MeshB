@@ -53,7 +53,7 @@ void addPolygonToMesh(const std::vector<size_t>& polyIndices,
     normal = normal.normalize();
     ProjectionFrame frame = computeSharedFrame(normal, center);
     std::vector<Triangle> tris;
-    triangulate(outerSegments, {}, frame, nodeGrid, eps, tris);
+    triangulate(outerSegments, {}, frame, nodeGrid, eps, tris, false);
     for (const auto& tri : tris) {
         mesh.triangles.push_back(tri);
         mesh.tags.push_back(tag);

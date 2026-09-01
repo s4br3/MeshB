@@ -110,7 +110,8 @@ void buildSubdividedEdges(
 void triangulate(
     const PolyLine& polygonSegments, const PolyLine& cuts,
     const ProjectionFrame& frame, SpatialGrid3D& nodeGrid,
-    const double eps, std::vector<Triangle>& outTriangles)
+    const double eps, std::vector<Triangle>& outTriangles,
+    const bool constrained)
 {
     std::vector<Vec2> initialPts;
     std::vector<EdgeKey> segs;
@@ -147,7 +148,13 @@ void triangulate(
     }
     CDTEdges = std::move(deduplicatedCDTEdges);
     if (uniquePts.size() < 3) return;
-    std::vector<TriangleCDT> cdtTriangles = calculateCDT(uniquePts, CDTEdges, eps);
+    std::vector<TriangleCDT> cdtTriangles;
+    if (constrained){
+        cdtTriangles = calculateCDT(uniquePts, CDTEdges, eps);
+    } 
+    else{
+        cdtTriangles = calculateDelaunay(uniquePts, eps);
+    }
     for (const auto& tri : cdtTriangles) {
         Vec2 centroid = {
             (tri.p1.x + tri.p2.x + tri.p3.x) / 3.0,

@@ -557,3 +557,31 @@ std::vector<TriangleCDT> calculateCDT(const std::vector<Vec2>& points, const std
     }
     return result;
 }
+std::vector<TriangleCDT> calculateDelaunay(std::vector<Vec2>& points, double eps)
+{
+    if (points.size() < 3) return {};
+    std::vector<Vec2> steinerPoints;
+    if (points.size() >= 4) {
+        Vec2 centroid{0.0, 0.0};
+        for (const auto& p : points) {
+            centroid.x += p.x;
+            centroid.y += p.y;
+        }
+        centroid.x /= static_cast<double>(points.size());
+        centroid.y /= static_cast<double>(points.size());
+        points.push_back(centroid);
+    }
+    std::vector<TriangleCDT> initialTris = calculateCDT(points, {}, eps);
+    for (const auto& tri : initialTris) {
+        double d1 = dot(tri.p1 - tri.p2, tri.p1 - tri.p2);
+        double d2 = dot(tri.p2 - tri.p3, tri.p2 - tri.p3);
+        double d3 = dot(tri.p3 - tri.p1, tri.p3 - tri.p1);
+        double maxEdgeSq = std::max({d1, d2, d3});
+        if (maxEdgeSq > 100.0 * eps * eps) {
+            Vec2 triCentroid = (tri.p1 + tri.p2 + tri.p3) / 3.0;
+            steinerPoints.push_back(triCentroid);
+        }
+    }
+    points.insert(points.end(), steinerPoints.begin(), steinerPoints.end());
+    return calculateCDT(points, {}, eps);
+}
