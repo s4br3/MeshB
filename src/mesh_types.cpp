@@ -27,7 +27,67 @@ std::ostream& operator<<(std::ostream& os, const MeshData& mesh) {
     os << "}\n";
     return os;
 }
+std::ostream& operator<<(std::ostream& os, const Connection& conn) {
+    os << "Intersections A -> B:\n";
+    for (const auto& [a, map] : conn.intersectionsAB) {
+        os << "  Triangle A [" << a << "]:\n";
+        for (const auto& [b, vecs] : map) {
+            os << "    -> Triangle B [" << b << "]: ";
+            for (size_t i = 0; i < vecs.size(); ++i) {
+                os << vecs[i] << (i + 1 < vecs.size() ? ", " : "");
+            }
+            os << "\n";
+        }
+    }
+    os << "\n";
+    os << "Intersections B -> A:\n";
+    for (const auto& [b, map] : conn.intersectionsBA) {
+        os << "  Triangle B [" << b << "]:\n";
+        for (const auto& [a, vecs] : map) {
+            os << "    -> Triangle A [" << a << "]: ";
+            for (size_t i = 0; i < vecs.size(); ++i) {
+                os << vecs[i] << (i + 1 < vecs.size() ? ", " : "");
+            }
+            os << "\n";
+        }
+    }
+    os << "\n";
 
+    os << "Overlaps A -> B:\n";
+    for (const auto& [a, list] : conn.overlapsAB) {
+        os << "  Triangle A [" << a << "] overlaps with B tags: [";
+        for (size_t i = 0; i < list.size(); ++i) {
+            os << list[i] << (i + 1 < list.size() ? ", " : "");
+        }
+        os << "]\n";
+    }
+    os << "\n";
+    os << "Overlaps B -> A:\n";
+    for (const auto& [b, list] : conn.overlapsBA) {
+        os << "  Triangle B [" << b << "] overlaps with A tags: [";
+        for (size_t i = 0; i < list.size(); ++i) {
+            os << list[i] << (i + 1 < list.size() ? ", " : "");
+        }
+        os << "]\n";
+    }
+    os << "\n";
+    os << "Overlap Percentages A -> B:\n";
+    for (const auto& [a, map] : conn.overlapPercentAB) {
+        os << "  Triangle A [" << a << "]:\n";
+        for (const auto& [b, percent] : map) {
+            os << "    -> Triangle B [" << b << "]: " << percent << "%\n";
+        }
+    }
+    os << "\n";
+    os << "Overlap Percentages B -> A:\n";
+    for (const auto& [b, map] : conn.overlapPercentBA) {
+        os << "  Triangle B [" << b << "]:\n";
+        for (const auto& [a, percent] : map) {
+            os << "    -> Triangle A [" << a << "]: " << percent << "%\n";
+        }
+    }
+    return os;
+}
 void recomputeMeshData(MeshData &mesh) {
     mesh.centres.clear();
     mesh.normals.clear();

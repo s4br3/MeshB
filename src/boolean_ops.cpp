@@ -251,12 +251,16 @@ Connection nonConformal(const bem::TriangleMesh<3>& A, const bem::TriangleMesh<3
             conn.intersectionsAB[idA][idB] = grid.getUniquePoints();
             conn.intersectionsBA[idB][idA] = grid.getUniquePoints();
             double overlapArea = rawAreas[idA][idB];
-            double percentage = 0.0;
+            double percentAB = 0.0;
+            double percentBA = 0.0;
             if (triAreasA[idA] > areaEps && overlapArea > areaEps) {
-                percentage = (overlapArea / triAreasA[idA]) * 100.0;
-                if (percentage > 100.0) percentage = 100.0;
+                percentAB = (overlapArea / triAreasA[idA]) * 100.0;
+                percentAB = std::max(0.0, std::min(100.0, percentAB));
+                percentBA = (overlapArea / triAreasA[idA]) * 100.0;
+                percentBA = std::max(0.0, std::min(100.0, percentAB));
             }
-            conn.overlapPercentages[idA][idB] = percentage;
+            conn.overlapPercentAB[idA][idB] = percentAB;
+            conn.overlapPercentAB[idA][idB] = percentBA;
         }
     }
     return conn;

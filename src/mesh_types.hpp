@@ -147,8 +147,16 @@ struct Connection {
     std::unordered_map<size_t, std::unordered_map<size_t, std::vector<Vec3>>> intersectionsBA; /**< Map from Mesh B tag -> Mesh A tag -> List of points defining the overlap */
     std::unordered_map<size_t, std::vector<size_t>> overlapsAB;                                /**< Map from Mesh A tag -> Vector of intersecting Mesh B tags */
     std::unordered_map<size_t, std::vector<size_t>> overlapsBA;                                /**< Map from Mesh B tag -> Vector of intersecting Mesh A tags */
-    std::unordered_map<size_t, std::unordered_map<size_t, double>> overlapPercentages;         /**< Map from Mesh A tag -> Mesh B tag -> Area percentage of overlap (0.0 to 100.0) */
+    std::unordered_map<size_t, std::unordered_map<size_t, double>> overlapPercentAB;         /**< Map from Mesh A tag -> Mesh B tag -> Area percentage of overlap (0.0 to 100.0) */
+    std::unordered_map<size_t, std::unordered_map<size_t, double>> overlapPercentBA;         /**< Map from Mesh B tag -> Mesh A tag -> Area percentage of overlap (0.0 to 100.0) */
 };
+
+/**
+* @brief Formatted stream output operator for Connection.
+* @param[in, out] os - Target output stream.
+* @param[in] conn - Connection Datatype.
+*/
+std::ostream& operator<<(std::ostream& os, const Connection& conn);
 
 /**
 * @struct ProjectionFrame
