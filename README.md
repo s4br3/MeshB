@@ -59,6 +59,10 @@ MeshB requires a triangle mesh and forces triangulation via an internal subsyste
 * **Standard Meshes (mostly tris/quads, < 1,000 N-gons with > 4 vertices)**: Executes in **30 seconds or less**.
 * **Heavy N-Gon Meshes (lots of N-gons with > 4 vertices)**: The current unoptimized triangulation subsystem can take **a few hours**.
 
+### Notes
+For some reason, the app is unable to successfully verify mesh conformity when the meshes have coplanar overlaps, though it does work for non-coplanar intersections. I feel like I had definitely seen it successfully work on coplanar intersections previously, but a lot has changed in the codebase so maybe that's why: maybe I'm misremembering. I don't quite know.
+Running a self-boolean results in the filter function not properly knowing whether a face should be kept or not, so output ends up quite badly (I suppose that degeneracy is why they don't let you run self-booleans normally).
+
 ---
 
 ## Contributing & Support
