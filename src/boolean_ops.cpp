@@ -94,13 +94,10 @@ std::vector<bool> getRemovalMask(const MeshData& mesh, const MeshData& targetMes
     if (targetIsClosed) {
         for (size_t i = 0; i < N; ++i) {
             if (visited[i]) continue;
-            double wn = evaluateGWN(mesh.centres[i], targetMesh, targetBVH, gwnData);
-            FaceClass currentClass = (std::abs(wn) > 0.5) ? FaceClass::Inside : FaceClass::Outside;
-            if (std::abs(std::abs(wn) - 0.5) < 0.1) {
-                FaceClass exact = classifyFace(targetBVH, targetMesh, mesh.centres[i], mesh.normals[i], eps);
-                if (exact == FaceClass::CoplanarSame || exact == FaceClass::CoplanarOpp) {
-                    currentClass = exact;
-                }
+            FaceClass currentClass = classifyFace(targetBVH, targetMesh, mesh.centres[i], mesh.normals[i], eps);
+            if (currentClass == FaceClass::Outside){
+                double wn = evaluateGWN(mesh.centres[i], targetMesh, targetBVH, gwnData);
+                currentClass = (std::abs(wn) > 0.5) ? FaceClass::Inside : FaceClass::Outside;
             }
             std::queue<size_t> q;
             q.push(i);
@@ -131,13 +128,10 @@ std::vector<bool> getRemovalMask(const MeshData& mesh, const MeshData& targetMes
     else{
         #pragma omp parallel for schedule(dynamic)
         for (size_t i = 0; i < N; ++i) {
-            double wn = evaluateGWN(mesh.centres[i], targetMesh, targetBVH, gwnData);
-            FaceClass currentClass = (std::abs(wn) > 0.5) ? FaceClass::Inside : FaceClass::Outside;
-            if (std::abs(std::abs(wn) - 0.5) < 0.1) {
-                FaceClass exact = classifyFace(targetBVH, targetMesh, mesh.centres[i], mesh.normals[i], eps);
-                if (exact == FaceClass::CoplanarSame || exact == FaceClass::CoplanarOpp) {
-                    currentClass = exact;
-                }
+            FaceClass currentClass = classifyFace(targetBVH, targetMesh, mesh.centres[i], mesh.normals[i], eps);
+            if (currentClass == FaceClass::Outside){
+                double wn = evaluateGWN(mesh.centres[i], targetMesh, targetBVH, gwnData);
+                currentClass = (std::abs(wn) > 0.5) ? FaceClass::Inside : FaceClass::Outside;
             }
             faceClasses[i] = currentClass;
         }

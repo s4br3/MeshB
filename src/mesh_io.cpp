@@ -199,6 +199,7 @@ MeshData loadMSH(const std::string &filename) {
     bool gridInitialized = false;
     double eps = 0.0;
     SpatialGrid3D nodeGrid(1e-5);
+
     while (std::getline(file, line)) {
         if (line.find("$Nodes") != std::string::npos) {
             size_t numEntityBlocks, numNodes, minNodeTag, maxNodeTag;
@@ -229,11 +230,19 @@ MeshData loadMSH(const std::string &filename) {
             if (!gridInitialized && !mesh.nodes.empty()) {
                 eps = computeMeshEpsilon(mesh.nodes);
                 nodeGrid = SpatialGrid3D(eps);
-                for (const auto& node : mesh.nodes) {
-                    nodeGrid.getOrAdd(node);
+                std::vector<size_t> remapped(mesh.nodes.size());
+                for (size_t i = 0; i < mesh.nodes.size(); ++i) {
+                    remapped[i] = nodeGrid.getOrAdd(mesh.nodes[i]);
                 }
+                for (size_t i = 0; i < tagToNodeIndex.size(); ++i) {
+                    if (tagToNodeIndex[i] < remapped.size()) {
+                        tagToNodeIndex[i] = remapped[tagToNodeIndex[i]];
+                    }
+                }
+                mesh.nodes = nodeGrid.getUniquePoints();
                 gridInitialized = true;
             }
+
             size_t numEntityBlocks, numElements, minElemTag, maxElemTag;
             file >> numEntityBlocks >> numElements >> minElemTag >> maxElemTag;
             for (size_t b = 0; b < numEntityBlocks; ++b) {
