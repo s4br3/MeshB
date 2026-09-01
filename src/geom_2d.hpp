@@ -3,6 +3,7 @@
 #include "vector.hpp"
 #include "math_utils.hpp"
 using EdgeKey = std::pair<size_t, size_t>;
+using Edge = std::pair<Vec2, Vec2>;
 /**
 * @brief Standard key of any edge, with smaller index first and larger index second.
 * @param [in] u - Index of one endpoint of the edge.

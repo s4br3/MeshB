@@ -1,5 +1,6 @@
 #include "triangulation.hpp"
 #include "bvh.hpp"
+#include "geom_2d.hpp"
 #include "geom_3d.hpp"
 #include "mesh_clean.hpp"
 #include <cmath>
@@ -89,6 +90,7 @@ void buildSubdividedEdges(
         for (size_t id : ids) {
             const Vec2& P = outUniquePts[id];
             double t = ((P.x - A.x) * vx + (P.y - A.y) * vy) / lenSq;
+            t = std::max(0.0, std::min(1.0, t));
             parametrized.push_back( {t, id} );
         }
         std::sort(parametrized.begin(), parametrized.end());
@@ -109,38 +111,33 @@ void buildSubdividedEdges(
 void triangulate(
     const PolyLine& polygonSegments, const PolyLine& cuts,
     const ProjectionFrame& frame, SpatialGrid3D& nodeGrid,
-    const double eps, std::vector<Triangle>& outTriangles)
+    const double eps, std::vector<Triangle>& outTriangles,
+    const bool constrained)
 {
-    if (polygonSegments.empty() && cuts.empty()) return;
     std::vector<Vec2> initialPts;
-    std::vector<std::pair<size_t, size_t>> segs;
-    std::vector<std::pair<Vec2, Vec2>> boundary2D;
+    std::vector<EdgeKey> segs;
+    std::vector<Edge> boundary2D;
+    SpatialGrid2D grid2D(eps);
     for (const std::pair<Vec3, Vec3>& seg : polygonSegments) {
-        size_t idx1 = nodeGrid.getOrAdd(seg.first);
-        size_t idx2 = nodeGrid.getOrAdd(seg.second);
-        if (idx1 != idx2) segs.push_back( {idx1, idx2} );
-        auto p1 = frame.to2D(seg.first);
-        auto p2 = frame.to2D(seg.second);
-        boundary2D.push_back({ {p1.x, p1.y}, {p2.x, p2.y} });
+        Vec2 p1 = frame.to2D(seg.first);
+        Vec2 p2 = frame.to2D(seg.second);
+        size_t idx1 = grid2D.getOrAdd(p1);
+        size_t idx2 = grid2D.getOrAdd(p2);
+        if (idx1 != idx2) segs.push_back({idx1, idx2});
+        boundary2D.push_back({p1, p2});
     }
-    std::unordered_set<std::pair<size_t, size_t>> cutEdge;
     for (const std::pair<Vec3, Vec3>& cut : cuts) {
-        size_t idx1 = nodeGrid.getOrAdd(cut.first);
-        size_t idx2 = nodeGrid.getOrAdd(cut.second);
-        if (idx1 != idx2) {
-            cutEdge.insert(makeEdgeKey(idx1, idx2));
-        }
+        Vec2 p1 = frame.to2D(cut.first);
+        Vec2 p2 = frame.to2D(cut.second);
+        size_t idx1 = grid2D.getOrAdd(p1);
+        size_t idx2 = grid2D.getOrAdd(p2);
+        if (idx1 != idx2) segs.push_back({idx1, idx2});
     }
-    for (const std::pair<size_t, size_t>& key : cutEdge) {
-        segs.push_back(key);
-    }
-    for (const Vec3& vec : nodeGrid.getUniquePoints()) {
-        initialPts.push_back(frame.to2D(vec));
-    }
+    initialPts = grid2D.getUniquePoints();
     std::vector<Vec2> uniquePts;
     std::vector<EdgeKey> CDTEdges;
     buildSubdividedEdges(initialPts, segs, uniquePts, CDTEdges, eps);
-    std::unordered_set<std::pair<size_t, size_t>> cleanEdges;
+    std::unordered_set<EdgeKey> cleanEdges;
     std::vector<EdgeKey> deduplicatedCDTEdges;
     for (const EdgeKey& edge : CDTEdges) {
         size_t v1 = edge.first;
@@ -197,12 +194,15 @@ void triangulate(
     if (!gmshLineTags.empty()) {
         gmsh::model::mesh::embed(1, gmshLineTags, 2, surf);
     }
+    if (constrained){
+        gmsh::option::setNumber("Mesh.MeshSizeMin", 1e22);
+        gmsh::option::setNumber("Mesh.MeshSizeMax", 1e22);
+        gmsh::option::setNumber("Mesh.MeshSizeExtendFromBoundary", 0);
+        gmsh::option::setNumber("Mesh.MeshSizeFromPoints", 0);
+        gmsh::option::setNumber("Mesh.MeshSizeFromCurvature", 0);
+    }
     gmsh::option::setNumber("Mesh.Algorithm", 5); 
-    gmsh::option::setNumber("Mesh.MeshSizeMin", 1e22);
-    gmsh::option::setNumber("Mesh.MeshSizeMax", 1e22);
-    gmsh::option::setNumber("Mesh.MeshSizeExtendFromBoundary", 0);
-    gmsh::option::setNumber("Mesh.MeshSizeFromPoints", 0);
-    gmsh::option::setNumber("Mesh.MeshSizeFromCurvature", 0);
+    
     gmsh::model::mesh::generate(2);
     std::vector<int> elementTypes;
     std::vector<std::vector<std::size_t>> elementTags, nodeTags;
