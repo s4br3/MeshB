@@ -3,6 +3,15 @@
 #include <stdexcept>
 #include <algorithm>
 #include <cmath>
+#include <vector>
+#include <optional>
+#include <array>
+static TriangleCDT makeCCWTriangle(Vec2 p1, Vec2 p2, Vec2 p3) {
+    if (cross2D(p2 - p1, p3 - p1) < 0) {
+        std::swap(p2, p3);
+    }
+    return TriangleCDT({p1, p2, p3});
+}
 static size_t getNeighbourAcrossEdge(const TriangleCDT& t, const Edge& e, double eps) {
     bool has1 = e.first.equals(t.p1, eps) || e.second.equals(t.p1, eps);
     bool has2 = e.first.equals(t.p2, eps) || e.second.equals(t.p2, eps);
@@ -43,19 +52,26 @@ size_t hashEdgeSpatial(const Edge& e, double eps) {
     return hashCombine(key.first, key.second);
 }
 bool pointInTriangle(const Vec2& p, const TriangleCDT& t, const double eps) {
-    Vec2 v0 = t.p3 - t.p1;
-    Vec2 v1 = t.p2 - t.p1; 
-    Vec2 v2 = p - t.p1;
-    double dot00 = dot(v0, v0);
-    double dot01 = dot(v0, v1);
-    double dot02 = dot(v0, v2);
-    double dot11 = dot(v1, v1);
-    double dot12 = dot(v1, v2);
-    double denom = (dot00 * dot11 - dot01 * dot01);
-    if (std::fabs(denom) <= eps) return false;
-    double u = (dot11 * dot02 - dot01 * dot12) / denom;
-    double v = (dot00 * dot12 - dot01 * dot02) / denom;
-    return (u >= -eps) && (v >= -eps) && (u + v <= 1 + eps);
+    double c1 = cross2D(t.p2 - t.p1, p - t.p1);
+    double c2 = cross2D(t.p3 - t.p2, p - t.p2);
+    double c3 = cross2D(t.p1 - t.p3, p - t.p3);
+    bool has_neg = (c1 < -eps) || (c2 < -eps) || (c3 < -eps);
+    bool has_pos = (c1 > eps) || (c2 > eps) || (c3 > eps);
+    return !(has_neg && has_pos);
+}
+static bool pointOnSegmentRobust(const Vec2& p, const Edge& e, double eps) {
+    double minX = std::min(e.first.x, e.second.x) - eps;
+    double maxX = std::max(e.first.x, e.second.x) + eps;
+    double minY = std::min(e.first.y, e.second.y) - eps;
+    double maxY = std::max(e.first.y, e.second.y) + eps;
+    if (p.x < minX || p.x > maxX || p.y < minY || p.y > maxY) return false;
+    
+    Vec2 ab = e.second - e.first;
+    Vec2 ap = p - e.first;
+    double area = std::fabs(cross2D(ab, ap));
+    double len = std::sqrt(dot(ab, ab));
+    if (len <= eps) return p.equals(e.first, eps);
+    return (area / len) <= eps;
 }
 double comparePoints(const Vec2& a, const Vec2& b, double eps) {
     if (std::abs(a.x - b.x) < eps) return a.y - b.y;
@@ -117,6 +133,25 @@ std::vector<Edge> findIntersectingEdges(const std::vector<TriangleCDT>& allTris,
             break;
         }
     }
+    if (!foundStart) {
+        for (size_t idx : activeTris) {
+            const TriangleCDT& t = allTris[idx];
+            if (!t.hasVertex(A, eps)) continue;
+            
+            Vec2 v1, v2;
+            if (t.p1.equals(A, eps)) { v1 = t.p2; v2 = t.p3; }
+            else if (t.p2.equals(A, eps)) { v1 = t.p3; v2 = t.p1; }
+            else { v1 = t.p1; v2 = t.p2; }
+            
+            Edge oppEdge = {v1, v2};
+            if (areSegmentsCrossing(oppEdge, e, eps)) {
+                currentTriIdx = idx;
+                exitEdge = oppEdge;
+                foundStart = true;
+                break;
+            }
+        }
+    }
     if (!foundStart) return {};
     std::vector<Edge> intersectingEdges;
     std::unordered_set<size_t> visitedWalk;
@@ -152,6 +187,9 @@ size_t findTriangleWithPoint(const std::vector<TriangleCDT>& allTris, const std:
     for (size_t idx : activeTris) {
         if (pointInTriangle(p, allTris[idx], eps)) return idx;
     }
+    for (size_t idx : activeTris) {
+        if (pointInTriangle(p, allTris[idx], eps * 100.0)) return idx;
+    }
     return NO_NEIGHBOUR;
 }
 std::optional<std::pair<size_t, size_t>> getTrianglesForEdge(
@@ -160,18 +198,16 @@ std::optional<std::pair<size_t, size_t>> getTrianglesForEdge(
     const Edge& e, 
     const double eps) 
 {
+    std::vector<size_t> matches;
     for (size_t idx : activeTris) {
         if (allTris[idx].hasVertex(e.first, eps) && allTris[idx].hasVertex(e.second, eps)) {
-            size_t nIdx = getNeighbourAcrossEdge(allTris[idx], e, eps);
-            if (nIdx != NO_NEIGHBOUR && activeTris.count(nIdx)) {
-                return std::make_pair(idx, nIdx);
-            }
-            return std::nullopt;
+            matches.push_back(idx);
+            if (matches.size() == 2) return std::make_pair(matches[0], matches[1]);
         }
     }
     return std::nullopt;
 }
-bool isInCircumcircle(const TriangleCDT& t, const Vec2& d) {
+bool isInCircumcircle(const TriangleCDT& t, const Vec2& d, const double eps) {
     Vec2 a = t.p1 - d;
     Vec2 b = t.p2 - d;
     Vec2 c = t.p3 - d;
@@ -185,14 +221,18 @@ bool isInCircumcircle(const TriangleCDT& t, const Vec2& d) {
     double det = sa * (b.x * c.y - c.x * b.y) -
                  sb * (a.x * c.y - c.x * a.y) +
                  sc * (a.x * b.y - b.x * a.y);
-    return det > 1e-12; 
+    return det > eps; 
 }
-bool checkIfConvexQuadrilateral(const Vec2& a, const Vec2& b, const Vec2& c, const Vec2& d) {
-    double c1 = cross2D(b - a, c - b);
-    double c2 = cross2D(c - b, d - c);
-    double c3 = cross2D(d - c, a - d);
-    double c4 = cross2D(a - d, b - a);
-    return (c1 > 1e-11 && c2 > 1e-11 && c3 > 1e-11 && c4 > 1e-11);
+bool checkIfConvexQuadrilateral(const Vec2& a, const Vec2& b, const Vec2& c, const Vec2& d, const double eps) {
+    auto crossSign = [](const Vec2& p, const Vec2& lineStart, const Vec2& lineEnd) {
+        return cross2D(lineEnd - lineStart, p - lineStart);
+    };
+    double s1 = crossSign(a, b, d);
+    double s2 = crossSign(c, b, d);
+    double s3 = crossSign(b, a, c);
+    double s4 = crossSign(d, a, c);
+
+    return (s1 * s2 < -eps) && (s3 * s4 < -eps);
 }
 std::array<Vec2, 4> getQuadrilateral(const std::vector<TriangleCDT>& allTris, const std::pair<size_t, size_t>& e, double eps) {
     const TriangleCDT& t1 = allTris[e.first];
@@ -228,10 +268,10 @@ static void flipEdgeAndMaintainNeighbours(
     activeTris.erase(t1Idx);
     activeTris.erase(t2Idx);
     size_t newIdx1 = allTris.size();
-    allTris.push_back(TriangleCDT({quad[0], quad[1], quad[2]}));
+    allTris.push_back(makeCCWTriangle(quad[0], quad[1], quad[2]));
     activeTris.insert(newIdx1);
     size_t newIdx2 = allTris.size();
-    allTris.push_back(TriangleCDT({quad[0], quad[2], quad[3]}));
+    allTris.push_back(makeCCWTriangle(quad[0], quad[2], quad[3]));
     activeTris.insert(newIdx2);
     setNeighbourAcrossEdge(allTris[newIdx1], Edge{quad[0], quad[2]}, newIdx2, eps);
     setNeighbourAcrossEdge(allTris[newIdx2], Edge{quad[0], quad[2]}, newIdx1, eps);
@@ -261,9 +301,9 @@ static std::array<size_t, 3> splitTriangle(
 {
     TriangleCDT old = allTris[tIdx];
     activeTris.erase(tIdx);
-    size_t t1 = allTris.size(); allTris.emplace_back(TriangleCDT({pt, old.p1, old.p2}));
-    size_t t2 = allTris.size(); allTris.emplace_back(TriangleCDT({pt, old.p2, old.p3}));
-    size_t t3 = allTris.size(); allTris.emplace_back(TriangleCDT({pt, old.p3, old.p1}));
+    size_t t1 = allTris.size(); allTris.emplace_back(makeCCWTriangle(pt, old.p1, old.p2));
+    size_t t2 = allTris.size(); allTris.emplace_back(makeCCWTriangle(pt, old.p2, old.p3));
+    size_t t3 = allTris.size(); allTris.emplace_back(makeCCWTriangle(pt, old.p3, old.p1));
     activeTris.insert(t1);
     activeTris.insert(t2);
     activeTris.insert(t3);
@@ -287,6 +327,94 @@ static std::array<size_t, 3> splitTriangle(
     }
     return {t1, t2, t3};
 }
+static std::vector<size_t> splitEdge(
+    std::vector<TriangleCDT>& allTris,
+    std::unordered_set<size_t>& activeTris,
+    size_t t1Idx,
+    const Edge& e,
+    const Vec2& pt,
+    double eps)
+{
+    TriangleCDT t1 = allTris[t1Idx];
+    Vec2 A = e.first;
+    Vec2 B = e.second;
+    Vec2 C;
+    if (!t1.p1.equals(A, eps) && !t1.p1.equals(B, eps)) C = t1.p1;
+    else if (!t1.p2.equals(A, eps) && !t1.p2.equals(B, eps)) C = t1.p2;
+    else C = t1.p3;
+    size_t t2Idx = getNeighbourAcrossEdge(t1, e, eps);
+    if (t2Idx == NO_NEIGHBOUR || activeTris.count(t2Idx) == 0) {
+        for (size_t idx : activeTris) {
+            if (idx != t1Idx && allTris[idx].hasVertex(A, eps) && allTris[idx].hasVertex(B, eps)) {
+                t2Idx = idx;
+                break;
+            }
+        }
+    }
+    activeTris.erase(t1Idx);
+    std::vector<size_t> created;
+    if (t2Idx != NO_NEIGHBOUR && activeTris.count(t2Idx)) {
+        TriangleCDT t2 = allTris[t2Idx];
+        activeTris.erase(t2Idx);
+        Vec2 D;
+        if (!t2.p1.equals(A, eps) && !t2.p1.equals(B, eps)) D = t2.p1;
+        else if (!t2.p2.equals(A, eps) && !t2.p2.equals(B, eps)) D = t2.p2;
+        else D = t2.p3;
+        size_t nAC = getNeighbourAcrossEdge(t1, Edge{A, C}, eps);
+        size_t nCB = getNeighbourAcrossEdge(t1, Edge{C, B}, eps);
+        size_t nBD = getNeighbourAcrossEdge(t2, Edge{B, D}, eps);
+        size_t nDA = getNeighbourAcrossEdge(t2, Edge{D, A}, eps);
+        size_t idx1 = allTris.size(); allTris.emplace_back(makeCCWTriangle(pt, A, C));
+        size_t idx2 = allTris.size(); allTris.emplace_back(makeCCWTriangle(pt, C, B));
+        size_t idx3 = allTris.size(); allTris.emplace_back(makeCCWTriangle(pt, B, D));
+        size_t idx4 = allTris.size(); allTris.emplace_back(makeCCWTriangle(pt, D, A));
+        activeTris.insert(idx1); activeTris.insert(idx2);
+        activeTris.insert(idx3); activeTris.insert(idx4);
+        setNeighbourAcrossEdge(allTris[idx1], Edge{pt, C}, idx2, eps);
+        setNeighbourAcrossEdge(allTris[idx2], Edge{pt, C}, idx1, eps);
+        setNeighbourAcrossEdge(allTris[idx2], Edge{pt, B}, idx3, eps);
+        setNeighbourAcrossEdge(allTris[idx3], Edge{pt, B}, idx2, eps);
+        setNeighbourAcrossEdge(allTris[idx3], Edge{pt, D}, idx4, eps);
+        setNeighbourAcrossEdge(allTris[idx4], Edge{pt, D}, idx3, eps);
+        setNeighbourAcrossEdge(allTris[idx4], Edge{pt, A}, idx1, eps);
+        setNeighbourAcrossEdge(allTris[idx1], Edge{pt, A}, idx4, eps);
+        if (nAC != NO_NEIGHBOUR && activeTris.count(nAC)) {
+            setNeighbourAcrossEdge(allTris[idx1], Edge{A, C}, nAC, eps);
+            setNeighbourAcrossEdge(allTris[nAC], Edge{A, C}, idx1, eps);
+        }
+        if (nCB != NO_NEIGHBOUR && activeTris.count(nCB)) {
+            setNeighbourAcrossEdge(allTris[idx2], Edge{C, B}, nCB, eps);
+            setNeighbourAcrossEdge(allTris[nCB], Edge{C, B}, idx2, eps);
+        }
+        if (nBD != NO_NEIGHBOUR && activeTris.count(nBD)) {
+            setNeighbourAcrossEdge(allTris[idx3], Edge{B, D}, nBD, eps);
+            setNeighbourAcrossEdge(allTris[nBD], Edge{B, D}, idx3, eps);
+        }
+        if (nDA != NO_NEIGHBOUR && activeTris.count(nDA)) {
+            setNeighbourAcrossEdge(allTris[idx4], Edge{D, A}, nDA, eps);
+            setNeighbourAcrossEdge(allTris[nDA], Edge{D, A}, idx4, eps);
+        }
+        created = {idx1, idx2, idx3, idx4};
+    } else {
+        size_t nAC = getNeighbourAcrossEdge(t1, Edge{A, C}, eps);
+        size_t nCB = getNeighbourAcrossEdge(t1, Edge{C, B}, eps);
+        size_t idx1 = allTris.size(); allTris.emplace_back(makeCCWTriangle(pt, A, C));
+        size_t idx2 = allTris.size(); allTris.emplace_back(makeCCWTriangle(pt, C, B));
+        activeTris.insert(idx1); activeTris.insert(idx2);
+        setNeighbourAcrossEdge(allTris[idx1], Edge{pt, C}, idx2, eps);
+        setNeighbourAcrossEdge(allTris[idx2], Edge{pt, C}, idx1, eps);
+        if (nAC != NO_NEIGHBOUR && activeTris.count(nAC)) {
+            setNeighbourAcrossEdge(allTris[idx1], Edge{A, C}, nAC, eps);
+            setNeighbourAcrossEdge(allTris[nAC], Edge{A, C}, idx1, eps);
+        }
+        if (nCB != NO_NEIGHBOUR && activeTris.count(nCB)) {
+            setNeighbourAcrossEdge(allTris[idx2], Edge{C, B}, nCB, eps);
+            setNeighbourAcrossEdge(allTris[nCB], Edge{C, B}, idx2, eps);
+        }
+        created = {idx1, idx2};
+    }
+    return created;
+}
 std::vector<TriangleCDT> calculateCDT(const std::vector<Vec2>& points, const std::vector<EdgeKey>& edges, double eps) {
     std::vector<TriangleCDT> allTris;
     std::unordered_set<size_t> activeTris;
@@ -307,21 +435,37 @@ std::vector<TriangleCDT> calculateCDT(const std::vector<Vec2>& points, const std
         if (p.y > maxY) maxY = p.y;
     }
     double dMax = std::max(maxX - minX, maxY - minY);
+    if (dMax <= eps) dMax = 1.0;
     double midX = (minX + maxX) / 2.0;
     double midY = (minY + maxY) / 2.0;
-    Vec2 p1 = {midX - 20 * dMax, midY - dMax};
-    Vec2 p2 = {midX + 20 * dMax, midY - dMax}; 
-    Vec2 p3 = {midX, midY + 20 * dMax};
+    Vec2 p1 = {midX - 100 * dMax, midY - 100 * dMax};
+    Vec2 p2 = {midX + 100 * dMax, midY - 100 * dMax}; 
+    Vec2 p3 = {midX, midY + 100 * dMax};
     allTris.emplace_back(std::array<Vec2, 3>{p1, p2, p3});
     activeTris.insert(0);
     for (const Vec2& pt : points) {
         size_t tIdx = findTriangleWithPoint(allTris, activeTris, pt, eps);
         if (tIdx == NO_NEIGHBOUR) continue;
-        std::array<size_t, 3> newTris = splitTriangle(allTris, activeTris, tIdx, pt, eps);
-        std::vector<size_t> stack;
-        stack.push_back(newTris[0]);
-        stack.push_back(newTris[1]);
-        stack.push_back(newTris[2]);
+        const TriangleCDT& targetTri = allTris[tIdx];
+        if (targetTri.p1.equals(pt, eps) || targetTri.p2.equals(pt, eps) || targetTri.p3.equals(pt, eps)) continue;
+        Edge edgeOn;
+        bool isOnEdge = false;
+        TriangleEdges tEdges = targetTri.getEdges();
+        for (int i = 0; i < 3; ++i) {
+            if (pointOnSegmentRobust(pt, tEdges[i], eps)) {
+                edgeOn = tEdges[i];
+                isOnEdge = true;
+                break;
+            }
+        }
+        std::vector<size_t> newTris;
+        if (isOnEdge) {
+            newTris = splitEdge(allTris, activeTris, tIdx, edgeOn, pt, eps);
+        } else {
+            std::array<size_t, 3> splitRes = splitTriangle(allTris, activeTris, tIdx, pt, eps);
+            newTris.assign(splitRes.begin(), splitRes.end());
+        }
+        std::vector<size_t> stack = newTris;
         while (!stack.empty()) {
             size_t currTriIdx = stack.back();
             stack.pop_back();
@@ -334,7 +478,7 @@ std::vector<TriangleCDT> calculateCDT(const std::vector<Vec2>& points, const std
             else continue; 
             size_t oppNeighbour = getNeighbourAcrossEdge(currTri, Edge{vA, vB}, eps);
             if (oppNeighbour != NO_NEIGHBOUR && activeTris.count(oppNeighbour)) {
-                if (isInCircumcircle(allTris[oppNeighbour], pt)) {
+                if (isInCircumcircle(allTris[oppNeighbour], pt, eps)) {
                     std::pair<size_t, size_t> adj = {currTriIdx, oppNeighbour};
                     std::array<Vec2, 4> quad;
                     try { 
@@ -342,7 +486,7 @@ std::vector<TriangleCDT> calculateCDT(const std::vector<Vec2>& points, const std
                     } catch (...) { 
                         continue; 
                     }
-                    if (checkIfConvexQuadrilateral(quad[0], quad[1], quad[2], quad[3])) {
+                    if (checkIfConvexQuadrilateral(quad[0], quad[1], quad[2], quad[3], eps)) {
                         flipEdgeAndMaintainNeighbours(allTris, activeTris, currTriIdx, oppNeighbour, quad, eps);
                         size_t new1 = allTris.size() - 2;
                         size_t new2 = allTris.size() - 1;
@@ -356,7 +500,7 @@ std::vector<TriangleCDT> calculateCDT(const std::vector<Vec2>& points, const std
     for (const Edge& constraint : constraintList) {
         if (doesEdgeExist(allTris, activeTris, constraint, eps)) continue;
         std::vector<Edge> intersectingEdges = findIntersectingEdges(allTris, activeTris, constraint, eps);
-        int maxFlips = intersectingEdges.size() * intersectingEdges.size() + 20;
+        int maxFlips = static_cast<int>(intersectingEdges.size() * intersectingEdges.size()) + 20;
         while (!intersectingEdges.empty() && maxFlips-- > 0) {
             Edge toFlip = intersectingEdges.front();
             intersectingEdges.erase(intersectingEdges.begin());
@@ -364,7 +508,7 @@ std::vector<TriangleCDT> calculateCDT(const std::vector<Vec2>& points, const std
             if (!adj) continue;
             std::array<Vec2, 4> quad;
             try { quad = getQuadrilateral(allTris, *adj, eps); } catch (...) { continue; }
-            if (checkIfConvexQuadrilateral(quad[0], quad[1], quad[2], quad[3])) {
+            if (checkIfConvexQuadrilateral(quad[0], quad[1], quad[2], quad[3], eps)) {
                 Edge newDiag = {quad[0], quad[2]};
                 if (areSegmentsCrossing(newDiag, constraint, eps)) {
                     intersectingEdges.push_back(toFlip); 
@@ -377,7 +521,7 @@ std::vector<TriangleCDT> calculateCDT(const std::vector<Vec2>& points, const std
         }
     }
     bool flipped = true;
-    int max_opt_flips = activeTris.size() * activeTris.size() + 20;
+    int max_opt_flips = static_cast<int>(activeTris.size() * activeTris.size()) + 20;
     while (flipped && max_opt_flips-- > 0) {
         flipped = false;
         std::vector<size_t> currentActive(activeTris.begin(), activeTris.end());
@@ -391,21 +535,10 @@ std::vector<TriangleCDT> calculateCDT(const std::vector<Vec2>& points, const std
                 if (!adj) continue;
                 std::array<Vec2, 4> quad;
                 try { quad = getQuadrilateral(allTris, *adj, eps); } catch (...) { continue; }
-                if (checkIfConvexQuadrilateral(quad[0], quad[1], quad[2], quad[3])) {
+                if (checkIfConvexQuadrilateral(quad[0], quad[1], quad[2], quad[3], eps)) {
                     TriangleCDT t1_test({quad[0], quad[1], quad[3]});
                     Vec2 d = quad[2];
-                    bool inCirc = isInCircumcircle(t1_test, d);
-                    bool shouldFlip = false;
-                    if (inCirc) {
-                        shouldFlip = true;
-                    } else {
-                        double curD = dot(quad[1] - quad[3], quad[1] - quad[3]);
-                        double newD = dot(quad[0] - quad[2], quad[0] - quad[2]);
-                        if (std::abs(curD - newD) > eps && newD < curD - eps) {
-                            shouldFlip = true;
-                        }
-                    }
-                    if (shouldFlip) {
+                    if (isInCircumcircle(t1_test, d, eps)) {
                         flipEdgeAndMaintainNeighbours(allTris, activeTris, adj->first, adj->second, quad, eps);
                         flipped = true;
                         break; 

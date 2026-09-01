@@ -123,9 +123,10 @@ std::optional<std::pair<size_t, size_t>> getTrianglesForEdge(const std::vector<T
 * @brief Checks if a point is strictly inside the circumcircle of a triangle.
 * @param[in] t The triangle defining the circumcircle.
 * @param[in] d The 2D query point.
+* @param[in] eps Tolerance value.
 * @return True if the point is inside the circumcircle.
 */
-bool isInCircumcircle(const TriangleCDT& t, const Vec2& d);
+bool isInCircumcircle(const TriangleCDT& t, const Vec2& d, const double eps);
 
 /**
 * @brief Validates if a quadrilateral formed by 4 points is strictly convex.
@@ -133,9 +134,10 @@ bool isInCircumcircle(const TriangleCDT& t, const Vec2& d);
 * @param[in] b Second vertex.
 * @param[in] c Third vertex.
 * @param[in] d Fourth vertex.
+* @param[in] eps Tolerance value.
 * @return True if strictly convex.
 */
-bool checkIfConvexQuadrilateral(const Vec2& a, const Vec2& b, const Vec2& c, const Vec2& d);
+bool checkIfConvexQuadrilateral(const Vec2& a, const Vec2& b, const Vec2& c, const Vec2& d, const double eps);
 
 /**
 * @brief Extracts the 4 external vertices of a quadrilateral formed by two adjacent triangles.
