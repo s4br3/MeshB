@@ -203,7 +203,17 @@ void triangulate(
     }
     gmsh::option::setNumber("Mesh.Algorithm", 5); 
     
-    gmsh::model::mesh::generate(2);
+    std::vector<std::size_t> outNodeTags;
+    std::vector<double> outNodeCoords, outNodeParametricCoords;
+    gmsh::model::mesh::getNodes(outNodeTags, outNodeCoords, outNodeParametricCoords, 2, surf, true);
+    for (size_t i = 0; i < outNodeTags.size(); ++i) {
+        std::size_t tag = outNodeTags[i];
+        if (gmshTagToLocalIdx.find(tag) == gmshTagToLocalIdx.end()) {
+            Vec2 newPt = { outNodeCoords[i * 3], outNodeCoords[i * 3 + 1] };
+            uniquePts.push_back(newPt); //
+            gmshTagToLocalIdx[tag] = uniquePts.size() - 1;
+        }
+    }
     std::vector<int> elementTypes;
     std::vector<std::vector<std::size_t>> elementTags, nodeTags;
     gmsh::model::mesh::getElements(elementTypes, elementTags, nodeTags, 2, surf);
