@@ -130,7 +130,7 @@ void triangulate(
         Vec2 p2 = frame.to2D(cut.second);
         size_t idx1 = grid2D.getOrAdd(p1);
         size_t idx2 = grid2D.getOrAdd(p2);
-        if (idx1 != idx2) segs.push_back({idx1, idx2});
+        segs.push_back({idx1, idx2});
     }
     initialPts = grid2D.getUniquePoints();
     std::vector<Vec2> uniquePts;
