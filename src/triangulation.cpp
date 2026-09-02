@@ -131,7 +131,7 @@ void triangulate(
         Vec2 p2 = frame.to2D(cut.second);
         size_t idx1 = grid2D.getOrAdd(p1);
         size_t idx2 = grid2D.getOrAdd(p2);
-        if (idx1 != idx2) segs.push_back({idx1, idx2});
+        segs.push_back({idx1, idx2});
     }
     initialPts = grid2D.getUniquePoints();
     std::vector<Vec2> uniquePts;
@@ -150,7 +150,7 @@ void triangulate(
     CDTEdges = std::move(deduplicatedCDTEdges);
     if (uniquePts.size() < 3) return;
     if (!gmsh::isInitialized()) {
-        gmsh::initialize();
+        gmsh::initialize(0, nullptr, false);
         gmsh::option::setNumber("General.Terminal", 0); 
         gmsh::option::setNumber("General.NumThreads", 1);
     }
@@ -186,13 +186,24 @@ void triangulate(
         gmshTagToLocalIdx[tag] = i; 
     }
     std::vector<int> gmshLineTags;
+    std::vector<bool> pointUsedInLine(uniquePts.size(), false);
     for (const EdgeKey& edge : CDTEdges) {
         gmshLineTags.push_back(gmsh::model::geo::addLine(gmshPtTags[edge.first], gmshPtTags[edge.second]));
+        pointUsedInLine[edge.first] = true;
+        pointUsedInLine[edge.second] = true;
+    }
+    std::vector<int> isolatedPtTags;
+    for (size_t i = 0; i < uniquePts.size(); ++i) {
+        if (!pointUsedInLine[i]) {
+            isolatedPtTags.push_back(gmshPtTags[i]);
+        }
     }
     gmsh::model::geo::synchronize();
-    gmsh::model::mesh::embed(0, gmshPtTags, 2, surf);
     if (!gmshLineTags.empty()) {
         gmsh::model::mesh::embed(1, gmshLineTags, 2, surf);
+    }
+    if (!isolatedPtTags.empty()) {
+        gmsh::model::mesh::embed(0, isolatedPtTags, 2, surf);
     }
     if (constrained){
         gmsh::option::setNumber("Mesh.MeshSizeMin", 1e22);
@@ -202,15 +213,15 @@ void triangulate(
         gmsh::option::setNumber("Mesh.MeshSizeFromCurvature", 0);
     }
     gmsh::option::setNumber("Mesh.Algorithm", 5); 
-    
+    gmsh::model::mesh::generate(2);
     std::vector<std::size_t> outNodeTags;
     std::vector<double> outNodeCoords, outNodeParametricCoords;
-    gmsh::model::mesh::getNodes(outNodeTags, outNodeCoords, outNodeParametricCoords, 2, surf, true);
+    gmsh::model::mesh::getNodes(outNodeTags, outNodeCoords, outNodeParametricCoords, -1, -1);
     for (size_t i = 0; i < outNodeTags.size(); ++i) {
         std::size_t tag = outNodeTags[i];
         if (gmshTagToLocalIdx.find(tag) == gmshTagToLocalIdx.end()) {
             Vec2 newPt = { outNodeCoords[i * 3], outNodeCoords[i * 3 + 1] };
-            uniquePts.push_back(newPt); //
+            uniquePts.push_back(newPt);
             gmshTagToLocalIdx[tag] = uniquePts.size() - 1;
         }
     }
