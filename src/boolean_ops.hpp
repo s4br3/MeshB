@@ -23,11 +23,26 @@ std::vector<bool> getRemovalMask(
 
 /**
 * @brief Generates non-conformal mesh interface connections between two independent meshes.
+* @param[in] meshA - Primary surface mesh.
+* @param[in] meshB - Secondary surface mesh.
+* @return Connection object containing mapping data across non-matching boundaries and intersections.
+*/
+Connection nonConformal(const MeshData& meshA, const MeshData& meshB);
+
+/**
+* @brief Generates non-conformal mesh interface connections between two independent meshes.
 * @param[in] meshA - First openBEM surface mesh.
 * @param[in] meshB - Second openBEM surface mesh.
 * @return Connection object containing mapping data across non-matching boundaries and intersections.
 */
 Connection nonConformal(const bem::TriangleMesh<3>& meshA, const bem::TriangleMesh<3>& meshB);
+
+/**
+* @brief Set ctx.conformal to whether the meshes stored in the collision context
+* are conformal to one another.
+* @param[in] ctx - Collision context to evaluate.
+*/
+void verifyMeshConformity(CollisionContext& ctx);
 
 /**
 * @brief Low-level pipeline computing collisions and cutting operations between two openBEM meshes.

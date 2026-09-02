@@ -166,9 +166,7 @@ double computePolyLineArea(const PolyLine& poly) {
     }
     return 0.5 * std::sqrt(dot(areaVec, areaVec));
 }
-Connection nonConformal(const bem::TriangleMesh<3>& A, const bem::TriangleMesh<3>& B) {
-    MeshData meshA = extractMeshData(A);
-    MeshData meshB = extractMeshData(B);
+Connection nonConformal(const MeshData& meshA, const MeshData& meshB){
     BVH bvhA = buildMeshBVH(meshA, 0.0);
     BVH bvhB = buildMeshBVH(meshB, 0.0);
     double eps = 1e-7;
@@ -186,6 +184,14 @@ Connection nonConformal(const bem::TriangleMesh<3>& A, const bem::TriangleMesh<3
         Vec3 v2 = meshA.nodes[meshA.triangles[i].v[2]];
         Vec3 cr = cross(v1 - v0, v2 - v0);
         triAreasA[i] = 0.5 * std::sqrt(dot(cr, cr));
+    }
+    std::vector<double> triAreasB(meshB.triangles.size(), 0.0);
+    for(size_t i = 0; i < meshB.triangles.size(); ++i) {
+        Vec3 v0 = meshB.nodes[meshB.triangles[i].v[0]];
+        Vec3 v1 = meshB.nodes[meshB.triangles[i].v[1]];
+        Vec3 v2 = meshB.nodes[meshB.triangles[i].v[2]];
+        Vec3 cr = cross(v1 - v0, v2 - v0);
+        triAreasB[i] = 0.5 * std::sqrt(dot(cr, cr));
     }
     std::vector<std::pair<size_t, size_t>> stack;
     if (!bvhA.nodes.empty() && !bvhB.nodes.empty()) stack.emplace_back(0, 0);
@@ -256,14 +262,19 @@ Connection nonConformal(const bem::TriangleMesh<3>& A, const bem::TriangleMesh<3
             if (triAreasA[idA] > areaEps && overlapArea > areaEps) {
                 percentAB = (overlapArea / triAreasA[idA]) * 100.0;
                 percentAB = std::max(0.0, std::min(100.0, percentAB));
-                percentBA = (overlapArea / triAreasA[idA]) * 100.0;
-                percentBA = std::max(0.0, std::min(100.0, percentAB));
+                percentBA = (overlapArea / triAreasB[idB]) * 100.0;
+                percentBA = std::max(0.0, std::min(100.0, percentBA));
             }
             conn.overlapPercentAB[idA][idB] = percentAB;
-            conn.overlapPercentAB[idA][idB] = percentBA;
+            conn.overlapPercentBA[idB][idA] = percentBA;
         }
     }
     return conn;
+}
+Connection nonConformal(const bem::TriangleMesh<3>& A, const bem::TriangleMesh<3>& B) {
+    MeshData meshA = extractMeshData(A);
+    MeshData meshB = extractMeshData(B);
+    return nonConformal(meshA, meshB);
 }
 CollisionContext collideAndCut(MeshData& meshA, MeshData& meshB, bool removeTouchingSurfaces) {
     CollisionContext ctx = detectCollisions(meshA, meshB);
