@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cctype>
 #include <iostream>
+#include <iomanip>
 std::string getExtension(const std::string& filename) {
     size_t pos = filename.find_last_of('.');
     if (pos == std::string::npos) return "";
@@ -141,6 +142,7 @@ MeshData loadOBJ(const std::string &filename) {
 void saveOBJ(const MeshData& mesh, const std::string& filename) {
     std::ofstream file(filename);
     if (!file.is_open()) throw std::runtime_error("Failed to open file for writing: " + filename);
+    file << std::scientific << std::setprecision(17);
     for (const auto& node : mesh.nodes) {
         file << "v " << node.x << " " << node.y << " " << node.z << "\n";
     }
@@ -152,37 +154,88 @@ void saveOBJ(const MeshData& mesh, const std::string& filename) {
 }
 MeshData loadSTL(const std::string &filename) {
     MeshData mesh;
-    std::ifstream file(filename);
+    std::ifstream file(filename, std::ios::binary);
     if (!file.is_open()) throw std::runtime_error("Failed to open STL file: " + filename);
-    std::string line;
-    while (std::getline(file, line)) {
-        std::istringstream iss(line);
-        std::string token;
-        iss >> token;
-        if (token == "vertex") {
-            double x, y, z;
-            iss >> x >> y >> z;
-            mesh.nodes.push_back({x, y, z});
-            if (mesh.nodes.size() % 3 == 0) {
-                size_t idx = mesh.nodes.size();
-                mesh.triangles.emplace_back(idx - 3, idx - 2, idx - 1);
-                mesh.tags.push_back(0);
+    file.seekg(0, std::ios::end);
+    std::streamsize fileSize = file.tellg();
+    file.seekg(0, std::ios::beg);
+    bool isBinary = false;
+    uint32_t numTriangles = 0;
+    if (fileSize >= 84) {
+        file.seekg(80, std::ios::beg);
+        file.read(reinterpret_cast<char*>(&numTriangles), sizeof(uint32_t));
+        if (fileSize == 84 + static_cast<std::streamsize>(numTriangles) * 50) {
+            isBinary = true;
+        }
+    }
+    if (isBinary) {
+        mesh.nodes.reserve(numTriangles * 3);
+        mesh.triangles.reserve(numTriangles);
+        file.seekg(84, std::ios::beg);
+        for (uint32_t i = 0; i < numTriangles; ++i) {
+            float dummyNormal[3];
+            file.read(reinterpret_cast<char*>(dummyNormal), 12);
+            for (int j = 0; j < 3; ++j) {
+                float v[3];
+                file.read(reinterpret_cast<char*>(v), 12);
+                mesh.nodes.push_back({static_cast<double>(v[0]), static_cast<double>(v[1]), static_cast<double>(v[2])});
+            }
+            uint16_t attr;
+            file.read(reinterpret_cast<char*>(&attr), sizeof(uint16_t));
+            size_t idx = mesh.nodes.size();
+            mesh.triangles.emplace_back(idx - 3, idx - 2, idx - 1);
+            mesh.tags.push_back(0);
+        }
+    } else {
+        file.clear();
+        file.seekg(0, std::ios::beg);
+        std::string line;
+        while (std::getline(file, line)) {
+            std::istringstream iss(line);
+            std::string token;
+            iss >> token;
+            if (token == "vertex") {
+                double x, y, z;
+                iss >> x >> y >> z;
+                mesh.nodes.push_back({x, y, z});
+                if (mesh.nodes.size() % 3 == 0) {
+                    size_t idx = mesh.nodes.size();
+                    mesh.triangles.emplace_back(idx - 3, idx - 2, idx - 1);
+                    mesh.tags.push_back(0);
+                }
             }
         }
+    }
+    if (!mesh.nodes.empty()) {
+        double eps = computeMeshEpsilon(mesh.nodes);
+        SpatialGrid3D nodeGrid(eps);
+        std::vector<Triangle> snappedTriangles;
+        for (const auto& tri : mesh.triangles) {
+            size_t v0 = nodeGrid.getOrAdd(mesh.nodes[tri.v[0]]);
+            size_t v1 = nodeGrid.getOrAdd(mesh.nodes[tri.v[1]]);
+            size_t v2 = nodeGrid.getOrAdd(mesh.nodes[tri.v[2]]);
+            if (v0 != v1 && v1 != v2 && v2 != v0) {
+                snappedTriangles.push_back({v0, v1, v2});
+            }
+        }
+        mesh.nodes = nodeGrid.getUniquePoints();
+        mesh.triangles = std::move(snappedTriangles);
     }
     recomputeMeshData(mesh);
     return mesh;
 }
+
 void saveSTL(const MeshData& mesh, const std::string& filename) {
     std::ofstream file(filename);
     if (!file.is_open()) throw std::runtime_error("Failed to open file for writing: " + filename);
+    file << std::scientific << std::setprecision(17);
     file << "solid mesh\n";
     for (size_t i = 0; i < mesh.triangles.size(); ++i) {
         Vec3 n = mesh.normals.empty() ? mesh.triangles[i].normal(mesh.nodes) : mesh.normals[i];
         file << "  facet normal " << n.x << " " << n.y << " " << n.z << "\n";
         file << "    outer loop\n";
         for (int j = 0; j < 3; ++j) {
-            Vec3 v = mesh.nodes[mesh.triangles[i].v[j]];
+            const Vec3& v = mesh.nodes[mesh.triangles[i].v[j]];
             file << "      vertex " << v.x << " " << v.y << " " << v.z << "\n";
         }
         file << "    endloop\n";
@@ -190,6 +243,7 @@ void saveSTL(const MeshData& mesh, const std::string& filename) {
     }
     file << "endsolid mesh\n";
 }
+
 MeshData loadMSH(const std::string &filename) {
     std::ifstream file(filename);
     if (!file.is_open()) throw std::runtime_error("Failed to open MSH file: " + filename);
@@ -299,75 +353,26 @@ MeshData loadMSH(const std::string &filename) {
     recomputeMeshData(mesh);
     return mesh;
 }
+
 void saveMSH(const MeshData& mesh, const std::string& filename) {
     std::ofstream file(filename);
     if (!file.is_open()) throw std::runtime_error("Failed to open file for writing: " + filename);
-    int defaultTag = 1;
-    if (filename.find('B') != std::string::npos) {
-        defaultTag = 2;
-    }
-    size_t maxTag = 0;
-    for (size_t tag : mesh.tags) {
-        if (tag > maxTag) maxTag = tag;
-    }
-    maxTag = std::max(maxTag, static_cast<size_t>(defaultTag));
-    std::vector<std::vector<size_t>> tagToTriIndices(maxTag + 1);
-    for (size_t i = 0; i < mesh.triangles.size(); ++i) {
-        size_t tag = (i < mesh.tags.size() && mesh.tags[i] != 0) ? mesh.tags[i] : defaultTag;
-        tagToTriIndices[tag].push_back(i);
-    }
-    size_t activeEntities = 0;
-    for (const auto& indices : tagToTriIndices) {
-        if (!indices.empty()) activeEntities++;
-    }
-    double minX = std::numeric_limits<double>::max(), minY = minX, minZ = minX;
-    double maxX = std::numeric_limits<double>::lowest(), maxY = maxX, maxZ = maxX;
-    for (const auto& node : mesh.nodes) {
-        minX = std::min(minX, node.x); minY = std::min(minY, node.y); minZ = std::min(minZ, node.z);
-        maxX = std::max(maxX, node.x); maxY = std::max(maxY, node.y); maxZ = std::max(maxZ, node.z);
-    }
-    if (mesh.nodes.empty()) {minX = minY = minZ = maxX = maxY = maxZ = 0.0; }
-    file << "$MeshFormat\n4.1 0 8\n$EndMeshFormat\n";
-    file << "$PhysicalNames\n" << activeEntities << "\n";
-    for (size_t tag = 0; tag <= maxTag; ++tag) {
-        if (!tagToTriIndices[tag].empty()) {
-            file << "2 " << tag << " \"Surface_" << tag << "\"\n";
-        }
-    }
-    file << "$EndPhysicalNames\n";
-    file << "$Entities\n0 0 " << activeEntities << " 0\n";
-    for (size_t tag = 0; tag <= maxTag; ++tag) {
-        if (!tagToTriIndices[tag].empty()) {
-            file << tag << " " << minX << " " << minY << " " << minZ << " "
-                 << maxX << " " << maxY << " " << maxZ << " 1 " << tag << "\n";
-        }
-    }
-    file << "$EndEntities\n";
-    size_t numNodes = mesh.nodes.size();
-    file << "$Nodes\n1 " << numNodes << " 1 " << (numNodes > 0 ? numNodes : 1) << "\n";
-    if (numNodes > 0) {
-        file << "2 1 0 " << numNodes << "\n";
-        for (size_t i = 0; i < numNodes; ++i) file << (i + 1) << "\n";
-        for (size_t i = 0; i < numNodes; ++i) {
-            file << mesh.nodes[i].x << " " << mesh.nodes[i].y << " " << mesh.nodes[i].z << "\n";
-        }
+    int defaultTag = (filename.find('B') != std::string::npos) ? 2 : 1;
+    file << "$MeshFormat\n2.2 0 8\n$EndMeshFormat\n";
+    file << "$Nodes\n" << mesh.nodes.size() << "\n";
+    file << std::scientific << std::setprecision(17);
+    for (size_t i = 0; i < mesh.nodes.size(); ++i) {
+        file << (i + 1) << " " << mesh.nodes[i].x << " " 
+             << mesh.nodes[i].y << " " << mesh.nodes[i].z << "\n";
     }
     file << "$EndNodes\n";
-    size_t numElements = mesh.triangles.size();
-    file << "$Elements\n" << activeEntities << " " << numElements 
-         << " 1 " << (numElements > 0 ? numElements : 1) << "\n";
-    size_t elemId = 1;
-    for (size_t tag = 0; tag <= maxTag; ++tag) {
-        const auto& triIndices = tagToTriIndices[tag];
-        if (triIndices.empty()) continue;
-        
-        file << "2 " << tag << " 2 " << triIndices.size() << "\n";
-        for (size_t idx : triIndices) {
-            file << elemId++ << " " 
-                 << (mesh.triangles[idx].v[0] + 1) << " "
-                 << (mesh.triangles[idx].v[1] + 1) << " "
-                 << (mesh.triangles[idx].v[2] + 1) << "\n";
-        }
+    file << "$Elements\n" << mesh.triangles.size() << "\n";
+    for (size_t i = 0; i < mesh.triangles.size(); ++i) {
+        size_t tag = (i < mesh.tags.size() && mesh.tags[i] != 0) ? mesh.tags[i] : defaultTag;
+        file << (i + 1) << " 2 2 " << tag << " " << tag << " "
+             << (mesh.triangles[i].v[0] + 1) << " "
+             << (mesh.triangles[i].v[1] + 1) << " "
+             << (mesh.triangles[i].v[2] + 1) << "\n";
     }
     file << "$EndElements\n";
 }
